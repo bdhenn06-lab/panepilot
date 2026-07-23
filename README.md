@@ -38,8 +38,25 @@ npm run build      # production build
 
 ## Deploy (Vercel)
 
-Import the repo in Vercel, set the two `NEXT_PUBLIC_SUPABASE_*` env vars, deploy.
-Add the production URL to Supabase Auth → Redirect URLs.
+**Recommended — GitHub + Vercel (gives auto-deploy on push, and runs the CI workflow):**
+
+1. Create an empty GitHub repo, then from this folder:
+   `git remote add origin <repo-url> && git push -u origin main`
+2. In the Vercel dashboard → **Add New → Project → Import** the repo.
+3. Set the three env vars (Project → Settings → Environment Variables):
+   - `NEXT_PUBLIC_SUPABASE_URL` = `https://xlfwpiwgjyhccvbsyhyq.supabase.co`
+   - `NEXT_PUBLIC_SUPABASE_ANON_KEY` = the `sb_publishable_…` key (Supabase → Settings → API Keys)
+   - `NEXT_PUBLIC_BILLING_ENABLED` = `false`
+4. Deploy. Copy the production URL (e.g. `https://panepilot.vercel.app`).
+5. In Supabase → **Authentication → URL Configuration**: set Site URL to the
+   production URL and add `<production-url>/auth/callback` to Redirect URLs.
+
+**Fast path — Vercel CLI (no GitHub):** `npx vercel login`, then `npx vercel`
+in this folder, add the env vars when prompted (or `npx vercel env add`), then
+do step 5 above.
+
+Either way the local `.env.local` is never uploaded — Vercel injects env vars
+at build time.
 
 ## Architecture notes
 
