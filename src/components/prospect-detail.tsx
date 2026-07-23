@@ -1,0 +1,142 @@
+'use client';
+
+import { useWorkspace, type ScoredParcel } from '@/components/workspace';
+import { useToast } from '@/components/toast';
+import { Button, Ghost, GhostLink, ScoreBar } from '@/components/ui';
+import { IconCheck, IconFile, IconMail, IconMap, IconPhone } from '@/components/icons';
+import {
+  MAX_TOUCHES,
+  STATUSES,
+  TOUCHES,
+  callScript,
+  googleMapsSearchUrl,
+  touchEmail,
+} from '@/lib/scoring';
+
+async function copyText(text: string): Promise<boolean> {
+  try {
+    await navigator.clipboard.writeText(text);
+    return true;
+  } catch {
+    return false;
+  }
+}
+
+export function ProspectDetail({ x }: { x: ScoredParcel }) {
+  const ws = useWorkspace();
+  const toast = useToast();
+  const s = ws.stateOf(x.id);
+  const email = touchEmail(x.input, x.est, Math.min(s.touch, MAX_TOUCHES - 1), ws.settings);
+  const touchIdx = Math.min(s.touch, MAX_TOUCHES - 1);
+
+  return (
+    <div className="grid sm:grid-cols-2 gap-3.5">
+      <div>
+        <p className="text-[11px] font-semibold text-ink3 mb-1.5">WHY THIS SCORE</p>
+        {x.score.parts.map((p) => (
+          <div key={p.label} className="mb-1.5">
+            <div className="flex justify-between text-xs">
+              <span>{p.label}</span>
+              <b className="tabular-nums">
+                {p.points} / {p.max}
+              </b>
+            </div>
+            <ScoreBar pct={(p.points / p.max) * 100} className="my-0.5" />
+            <p className="text-[10.5px] text-ink3">{p.why}</p>
+          </div>
+        ))}
+        <p className="text-[11px] font-semibold text-ink3 mt-2.5 mb-1">TEAM NOTES</p>
+        <textarea
+          className="w-full min-h-[52px] border border-line2 rounded-md p-2 text-xs outline-none focus:border-accent"
+          placeholder="Gatekeeper name, best time to call…"
+          defaultValue={s.notes}
+          onBlur={(e) => {
+            if (e.target.value !== s.notes) ws.setState(x.id, { notes: e.target.value });
+          }}
+        />
+      </div>
+      <div>
+        <p className="text-[11px] font-semibold text-ink3 mb-1.5">
+          TOUCH {Math.min(s.touch + 1, MAX_TOUCHES)}/{MAX_TOUCHES}:{' '}
+          {TOUCHES[touchIdx].name.toUpperCase()}
+        </p>
+        <div className="flex gap-1.5 flex-wrap mb-2">
+          <Ghost
+            onClick={() =>
+              void copyText(`Subject: ${email.subject}\n\n${email.body}`).then((ok) =>
+                toast(ok ? 'Email copied' : 'Copy failed — select the text below'),
+              )
+            }
+          >
+            <IconMail />
+            Copy email
+          </Ghost>
+          <GhostLink
+            href={`mailto:?subject=${encodeURIComponent(email.subject)}&body=${encodeURIComponent(email.body)}`}
+            title="Opens your mail app with the touch pre-filled — add the recipient"
+          >
+            <IconMail />
+            Mail app
+          </GhostLink>
+          <Ghost
+            onClick={() =>
+              void copyText(callScript(x.input, x.est, ws.settings)).then((ok) =>
+                toast(ok ? 'Call script copied' : 'Copy failed'),
+              )
+            }
+          >
+            <IconPhone />
+            Call script
+          </Ghost>
+          <GhostLink href={`/proposal/${x.id}`} target="_blank">
+            <IconFile />
+            Proposal
+          </GhostLink>
+          <GhostLink href={googleMapsSearchUrl(x.input, ws.settings)} target="_blank" rel="noreferrer">
+            <IconMap />
+            Satellite
+          </GhostLink>
+          <Button
+            className="!h-8 !text-xs"
+            onClick={() => {
+              const r = ws.markSent(x.id);
+              toast(
+                r
+                  ? `Touch ${r.touch} logged${r.due ? ` — next due ${r.due}` : ' — sequence complete'}`
+                  : 'Sequence complete',
+              );
+            }}
+          >
+            <IconCheck />
+            Mark sent
+          </Button>
+        </div>
+        <label className="text-xs text-ink2 flex items-center gap-1.5">
+          Status:
+          <select
+            className="h-[30px] border border-line2 rounded-md text-xs bg-panel px-1.5"
+            value={s.status}
+            onChange={(e) => {
+              const status = e.target.value as (typeof STATUSES)[number];
+              ws.setState(x.id, {
+                status,
+                ...(status === 'Won' || status === 'Dead' ? { due: '' } : {}),
+              });
+            }}
+          >
+            {STATUSES.map((st) => (
+              <option key={st} value={st}>
+                {st === '' ? 'Untouched' : st}
+              </option>
+            ))}
+          </select>
+        </label>
+        <div className="bg-soft rounded-lg p-3 text-xs whitespace-pre-wrap leading-relaxed mt-2 max-h-40 overflow-y-auto">
+          <b>{email.subject}</b>
+          {'\n\n'}
+          {email.body}
+        </div>
+      </div>
+    </div>
+  );
+}

@@ -1,0 +1,56 @@
+@import "tailwindcss";
+
+/* PanePilot design tokens — ported from the validated prototype.
+   Clean, light, blue accent. */
+@theme {
+  --color-bg: #f4f4f2;
+  --color-panel: #ffffff;
+  --color-soft: #fafaf8;
+  --color-line: #e4e4e0;
+  --color-line2: #d6d6d0;
+  --color-ink: #111113;
+  --color-ink2: #54534f;
+  --color-ink3: #8a8983;
+  --color-accent: #2a78d6;
+  --color-accent-dark: #185fa5;
+  --color-accent-soft: #e6f1fb;
+  --color-good: #0f9d58;
+  --color-good-soft: #e8f7ef;
+  --color-warn: #b45309;
+  --color-warn-soft: #fef3e2;
+  --color-bad: #c0392b;
+  --color-bad-soft: #fdecec;
+  --font-sans: -apple-system, "Segoe UI", Roboto, Helvetica, Arial, sans-serif;
+}
+
+body {
+  background: var(--color-bg);
+  color: var(--color-ink);
+  font-size: 14px;
+  line-height: 1.5;
+}
+
+/* Score progress bar (used everywhere; simpler as a utility than a component prop soup). */
+.score-bar {
+  height: 6px;
+  border-radius: 3px;
+  background: var(--color-line);
+  overflow: hidden;
+  flex: 1;
+}
+.score-bar > i {
+  display: block;
+  height: 100%;
+  background: var(--color-accent);
+  border-radius: 3px;
+}
+
+/* Print styles for the proposal page. */
+@media print {
+  .no-print {
+    display: none !important;
+  }
+  body {
+    background: #fff;
+  }
+}

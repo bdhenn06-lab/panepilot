@@ -1,0 +1,9 @@
+{
+  "name": "panepilot-data-scripts",
+  "private": true,
+  "type": "commonjs",
+  "description": "One-off ETL scripts for converting county exports into PanePilot-importable CSVs. Not part of the app runtime.",
+  "dependencies": {
+    "exceljs": "^4.4.0"
+  }
+}

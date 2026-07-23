@@ -1,0 +1,12 @@
+{
+  "version": "0.0.1",
+  "configurations": [
+    {
+      "name": "panepilot",
+      "runtimeExecutable": "C:\\Users\\bhenn\\dev\\tools\\node\\npm.cmd",
+      "runtimeArgs": ["run", "dev"],
+      "cwd": "C:\\Users\\bhenn\\dev\\panepilot",
+      "port": 3000
+    }
+  ]
+}
