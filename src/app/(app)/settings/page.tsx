@@ -175,15 +175,24 @@ function TeamSection() {
   async function createInvite() {
     if (!email.trim()) return;
     setBusy(true);
-    const { data, error } = await supabase
-      .rpc('create_invite', { target_org: ws.orgId, invite_email: email.trim() })
-      .select('*')
-      .single();
-    setBusy(false);
-    if (error) return toast(error.message);
-    setInvites((prev) => [...prev, data as OrgInviteRow]);
-    setEmail('');
-    void copyInvite(data as OrgInviteRow);
+    try {
+      const res = await fetch('/api/invites', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ orgId: ws.orgId, email: email.trim() }),
+      });
+      const data = await res.json();
+      if (!res.ok) return toast(data.error || `HTTP ${res.status}`);
+      setInvites((prev) => [...prev, data.invite as OrgInviteRow]);
+      setEmail('');
+      if (data.emailSent) {
+        toast(`Invite emailed to ${data.invite.email}`);
+      } else {
+        void copyInvite(data.invite as OrgInviteRow);
+      }
+    } finally {
+      setBusy(false);
+    }
   }
 
   async function copyInvite(inv: OrgInviteRow) {
@@ -262,8 +271,8 @@ function TeamSection() {
             </div>
           )}
           <p className="text-[11px] text-ink3 mt-2">
-            Invites are shareable links (valid 14 days) — send by text or email. No email service is
-            wired up yet, so the link is the invite.
+            Invites are shareable links (valid 14 days). If email is configured they&apos;re sent
+            automatically; otherwise the link is copied for you to share.
           </p>
         </>
       ) : (
