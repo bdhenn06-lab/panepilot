@@ -10,6 +10,7 @@ import { Button, Callout, Card, Ghost } from '@/components/ui';
 import { IconTrash, IconUpload } from '@/components/icons';
 import { Loading } from '@/components/loading';
 import { remapPipeline, snapshotPipeline, type PipelineSnapshot } from '@/lib/carryover';
+import type { TablesInsert } from '@/lib/db/database.types';
 import {
   IMPORT_FIELDS,
   guessColumns,
@@ -135,7 +136,7 @@ export default function ImportPage() {
 
     setBusy(true);
     setError('');
-    const kept: Record<string, unknown>[] = [];
+    const kept: TablesInsert<'parcels'>[] = [];
     let seen = 0;
 
     await new Promise<void>((resolve) => {
