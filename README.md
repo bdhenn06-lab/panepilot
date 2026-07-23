@@ -58,6 +58,32 @@ do step 5 above.
 Either way the local `.env.local` is never uploaded — Vercel injects env vars
 at build time.
 
+## Activating Stripe billing
+
+Fully built behind `NEXT_PUBLIC_BILLING_ENABLED`; the plan buttons, checkout,
+customer portal, and webhook subscription-sync are all wired. To turn it on:
+
+1. Create the three recurring Prices in Stripe (Solo $79, Crew $199, Franchise
+   $499 / month).
+2. Add env vars (locally in `.env.local`, and in Vercel): `STRIPE_SECRET_KEY`,
+   `STRIPE_PRICE_SOLO/CREW/FRANCHISE`, `SUPABASE_SERVICE_ROLE_KEY` (webhook
+   updates the org's plan with it), and set `NEXT_PUBLIC_BILLING_ENABLED=true`.
+3. Add a Stripe webhook to `https://<your-domain>/api/stripe/webhook` sending
+   `checkout.session.completed` and `customer.subscription.*`; put its signing
+   secret in `STRIPE_WEBHOOK_SECRET`.
+4. Test in Stripe **test mode** with `stripe listen --forward-to
+   localhost:3000/api/stripe/webhook` and a test card before going live.
+
+The webhook is the source of truth for `orgs.plan`; seat limits
+(`src/lib/plans.ts`, enforced in `create_invite`/`accept_invite`) follow it.
+
+## Email (Resend)
+
+Invite emails and follow-up reminders send only when `RESEND_API_KEY` (and
+optionally `RESEND_FROM`) are set — otherwise those paths no-op and invites
+remain shareable links. Create a free Resend account, verify a sending domain,
+and add the key to activate.
+
 ## Architecture notes
 
 - `src/lib/scoring/` — the IP. Pure TypeScript, no framework imports, fully
