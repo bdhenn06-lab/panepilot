@@ -9,6 +9,7 @@ import { IconTrash, IconUsers } from '@/components/icons';
 import { Loading } from '@/components/loading';
 import type { OrgInviteRow } from '@/lib/db/types';
 import { defaultsForMode, type ScoringSettings, type ServiceMode } from '@/lib/scoring';
+import { seatLimit, seatLimitLabel, seatsAvailable, type PlanId } from '@/lib/plans';
 
 type FieldDef = [keyof ScoringSettings, string, string];
 
@@ -175,12 +176,11 @@ function TeamSection() {
     if (!email.trim()) return;
     setBusy(true);
     const { data, error } = await supabase
-      .from('org_invites')
-      .insert({ org_id: ws.orgId, email: email.trim(), created_by: ws.userId })
+      .rpc('create_invite', { target_org: ws.orgId, invite_email: email.trim() })
       .select('*')
       .single();
     setBusy(false);
-    if (error) return toast(`Error: ${error.message}`);
+    if (error) return toast(error.message);
     setInvites((prev) => [...prev, data as OrgInviteRow]);
     setEmail('');
     void copyInvite(data as OrgInviteRow);
@@ -203,14 +203,22 @@ function TeamSection() {
     toast('Invite revoked');
   }
 
+  const plan = (ws.org?.plan ?? 'trial') as PlanId;
+  const limit = seatLimit(plan);
+  const used = members.length + invites.length;
+  const full = !seatsAvailable(plan, used);
+
   return (
     <Card className="mb-3">
       <p className="font-semibold mb-1.5 flex items-center gap-1.5">
         <IconUsers /> Team
       </p>
       <p className="text-xs text-ink2 mb-2">
-        {members.length} member{members.length === 1 ? '' : 's'} in this workspace. Seats are per
-        company — everyone shares the same territory and pipeline.
+        {used} of {seatLimitLabel(plan).toLowerCase()} used ({members.length} member
+        {members.length === 1 ? '' : 's'}
+        {invites.length ? `, ${invites.length} pending` : ''}) on the{' '}
+        <span className="capitalize">{plan}</span> plan. Everyone shares the same territory and
+        pipeline.
       </p>
       {isAdmin ? (
         <>
@@ -218,14 +226,25 @@ function TeamSection() {
             <input
               type="email"
               placeholder="teammate@company.com"
-              className="h-9 flex-1 border border-line2 rounded-md px-2.5 text-[13px] outline-none focus:border-accent"
+              className="h-9 flex-1 border border-line2 rounded-md px-2.5 text-[13px] outline-none focus:border-accent disabled:opacity-50"
               value={email}
+              disabled={full}
               onChange={(e) => setEmail(e.target.value)}
             />
-            <Button className="!h-9 !text-xs" disabled={busy} onClick={() => void createInvite()}>
+            <Button
+              className="!h-9 !text-xs"
+              disabled={busy || full}
+              onClick={() => void createInvite()}
+            >
               Create invite link
             </Button>
           </div>
+          {full && (
+            <p className="text-[11px] text-warn mt-1.5">
+              All {limit} seat{limit === 1 ? '' : 's'} on the {plan} plan are used. Upgrade in
+              Billing to invite more teammates.
+            </p>
+          )}
           {invites.length > 0 && (
             <div className="mt-2.5">
               {invites.map((inv) => (
