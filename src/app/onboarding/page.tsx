@@ -1,6 +1,6 @@
 'use client';
 
-import { useState } from 'react';
+import { useRef, useState } from 'react';
 import { useRouter } from 'next/navigation';
 import { createClient } from '@/lib/supabase/client';
 import { AuthCard } from '@/components/auth-card';
@@ -11,9 +11,15 @@ export default function OnboardingPage() {
   const [name, setName] = useState('');
   const [err, setErr] = useState('');
   const [busy, setBusy] = useState(false);
+  // Disabling the button via state isn't enough: `busy` only takes effect on
+  // the next render, so a fast double-click fires two submits and creates two
+  // workspaces. This ref blocks the second one synchronously.
+  const submitting = useRef(false);
 
   async function createOrg(e: React.FormEvent) {
     e.preventDefault();
+    if (submitting.current) return;
+    submitting.current = true;
     setBusy(true);
     setErr('');
     const supabase = createClient();
@@ -21,8 +27,12 @@ export default function OnboardingPage() {
       org_name: name.trim(),
       company: name.trim(),
     });
-    setBusy(false);
-    if (error) return setErr(error.message);
+    if (error) {
+      submitting.current = false;
+      setBusy(false);
+      return setErr(error.message);
+    }
+    // Stay locked on success — we're navigating away.
     router.push('/dashboard');
     router.refresh();
   }

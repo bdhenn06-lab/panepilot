@@ -7,10 +7,18 @@ export interface EmailDraft {
   body: string;
 }
 
-/** "123 Main St, Cincinnati, OH 45202" from parcel fields. */
+/**
+ * "123 Main St, Cincinnati, OH 45202" from parcel fields. Each component is
+ * omitted when absent, so an unconfigured region state can't produce a
+ * malformed address in proposals or Google Maps links.
+ */
 export function fullAddress(p: ParcelInput, s: ScoringSettings): string {
-  const zip = p.zip ? ' ' + String(p.zip).slice(0, 5) : '';
-  return `${p.address || ''}${p.city ? ', ' + p.city : ''}, ${s.regionState}${zip}`;
+  const street = String(p.address || '').trim();
+  const city = String(p.city || '').trim();
+  const zip = p.zip ? String(p.zip).slice(0, 5).trim() : '';
+  const state = String(s.regionState || '').trim();
+  const stateZip = [state, zip].filter(Boolean).join(' ');
+  return [street, city, stateZip].filter(Boolean).join(', ');
 }
 
 export function streetOf(p: ParcelInput): string {

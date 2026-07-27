@@ -2,9 +2,18 @@ import { describe, expect, it } from 'vitest';
 import { estimate } from '../estimate';
 import { buildContext, gradeOf, isLocalMailing, paneScore } from '../score';
 import { DEFAULT_SETTINGS } from '../settings';
-import type { ParcelInput } from '../types';
+import type { ParcelInput, ScoringSettings } from '../types';
 
-const S = DEFAULT_SETTINGS;
+// The fixtures below are a Cincinnati territory. Locality markers are per-org
+// settings (detected from the data on import, not hardcoded defaults), so the
+// tests set them explicitly rather than relying on what a new org starts with.
+const S: ScoringSettings = {
+  ...DEFAULT_SETTINGS,
+  localState: 'OH',
+  localCity: 'Cincinnati',
+  localZipPrefix: '45',
+  regionState: 'OH',
+};
 
 const office = (over: Partial<ParcelInput> = {}): ParcelInput => ({
   address: '100 Main St',
@@ -145,7 +154,7 @@ describe('paneScore', () => {
 });
 
 describe('isLocalMailing (configurable, replaces the prototype regex)', () => {
-  it('matches the default Cincinnati markers like the prototype did', () => {
+  it('matches configured Cincinnati markers like the prototype did', () => {
     expect(isLocalMailing('CINCINNATI, OH 45202', S)).toBe(true);
     expect(isLocalMailing('123 Elm St, Blue Ash OH', S)).toBe(true);
     expect(isLocalMailing('PO BOX 9, 45242', S)).toBe(true);
@@ -156,6 +165,13 @@ describe('isLocalMailing (configurable, replaces the prototype regex)', () => {
     const tx = { ...S, localState: 'TX', localCity: 'Austin', localZipPrefix: '787' };
     expect(isLocalMailing('AUSTIN, TX 78701', tx)).toBe(true);
     expect(isLocalMailing('CINCINNATI, OH 45202', tx)).toBe(false);
+  });
+
+  it('a brand-new workspace has no markers, so nothing is falsely local', () => {
+    // Guards the old bug: Cincinnati defaults made out-of-state owners score
+    // as local decision-makers for every non-Ohio company.
+    expect(isLocalMailing('CINCINNATI, OH 45202', DEFAULT_SETTINGS)).toBe(false);
+    expect(isLocalMailing('DENVER, CO 80202', DEFAULT_SETTINGS)).toBe(false);
   });
 
   it('does not false-positive the ZIP prefix inside street numbers', () => {

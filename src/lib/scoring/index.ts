@@ -1,6 +1,7 @@
 export * from './types';
 export * from './settings';
 export * from './classify';
+export * from './locality';
 export * from './owner';
 export * from './estimate';
 export * from './score';

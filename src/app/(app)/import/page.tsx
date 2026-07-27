@@ -13,6 +13,7 @@ import { remapPipeline, snapshotPipeline, type PipelineSnapshot } from '@/lib/ca
 import type { TablesInsert } from '@/lib/db/database.types';
 import {
   IMPORT_FIELDS,
+  detectLocality,
   guessColumns,
   isCommercial,
   isResidential,
@@ -42,6 +43,7 @@ export default function ImportPage() {
   const [file, setFile] = useState<File | null>(null);
   const [headers, setHeaders] = useState<string[]>([]);
   const [mapping, setMapping] = useState<Mapping | null>(null);
+  const [sampleRows, setSampleRows] = useState<CsvRow[]>([]);
   const [hot, setHot] = useState(false);
   const [progress, setProgress] = useState('');
   const [busy, setBusy] = useState(false);
@@ -53,12 +55,16 @@ export default function ImportPage() {
   const targetLabel = isResidentialOrg ? 'residential' : 'commercial';
   const matchesTarget = isResidentialOrg ? isResidential : isCommercial;
   const hasExisting = ws.parcels.length > 0;
+  // Show what the current mapping actually pulls out of the file, so a
+  // mis-detected column is obvious before it becomes 25k bad rows.
+  const previewRows = sampleRows.slice(0, 3);
+  const previewFields = mapping ? IMPORT_FIELDS.filter(([field]) => mapping[field]) : [];
 
   function handleFile(f: File) {
     setError('');
     Papa.parse<CsvRow>(f, {
       header: true,
-      preview: 1,
+      preview: 6,
       complete: (res) => {
         const h = res.meta.fields ?? [];
         if (!h.length) {
@@ -68,6 +74,7 @@ export default function ImportPage() {
         setFile(f);
         setHeaders(h);
         setMapping(guessColumns(h));
+        setSampleRows(res.data.filter((r) => Object.values(r).some((v) => String(v ?? '').trim())));
       },
     });
   }
@@ -107,6 +114,34 @@ export default function ImportPage() {
       await supabase.from('routes').insert({ org_id: ws.orgId, stops: routeIds, created_by: ws.userId });
     }
     return states.length;
+  }
+
+  /**
+   * Fill in the workspace's market from the parcels just imported — the state
+   * appended to addresses and the local-owner markers used by the buyer-signal
+   * score. Only fills fields the team hasn't set themselves, so it never
+   * overwrites a deliberate choice. Written directly (not via the debounced
+   * saveSettings) so the refresh below reads the new values.
+   */
+  async function applyDetectedLocality(rows: TablesInsert<'parcels'>[]): Promise<string> {
+    const s = ws.settings;
+    if (s.regionState && s.localState && s.localCity && s.localZipPrefix) return '';
+    const detected = detectLocality(
+      rows.map((r) => ({ address: r.address, city: r.city ?? null, zip: r.zip ?? null })),
+    );
+    if (!detected) return '';
+    const { error: setErr } = await supabase
+      .from('org_settings')
+      .update({
+        region_state: s.regionState || detected.regionState,
+        local_state: s.localState || detected.localState,
+        local_city: s.localCity || detected.localCity,
+        local_zip_prefix: s.localZipPrefix || detected.localZipPrefix,
+      })
+      .eq('org_id', ws.orgId);
+    if (setErr) return '';
+    const where = [detected.localCity, detected.regionState].filter(Boolean).join(', ');
+    return `market set to ${where}`;
   }
 
   async function runImport() {
@@ -208,13 +243,19 @@ export default function ImportPage() {
         carried = await restorePipeline(snapshot, newIdByParcelNumber);
       }
 
+      const detectedNote = await applyDetectedLocality(kept);
+
       setProgress('');
       await ws.refresh();
       setBusy(false);
       toast(
-        carried
-          ? `Territory imported — ${formatNum(carried)} statuses/notes carried over`
-          : 'Territory imported',
+        [
+          'Territory imported',
+          carried ? `${formatNum(carried)} statuses/notes carried over` : '',
+          detectedNote,
+        ]
+          .filter(Boolean)
+          .join(' — '),
       );
       router.push('/dashboard');
     } catch (e) {
@@ -345,9 +386,69 @@ export default function ImportPage() {
               </div>
             ))}
           </div>
+          {previewFields.length > 0 && (
+            <div className="mt-3">
+              <p className="text-xs font-semibold text-ink3 mb-1">
+                PREVIEW — first {previewRows.length} row{previewRows.length === 1 ? '' : 's'} as
+                mapped
+              </p>
+              <div className="overflow-x-auto border border-line rounded-lg">
+                <table className="w-full border-collapse text-[11.5px] whitespace-nowrap">
+                  <thead>
+                    <tr>
+                      {previewFields.map(([field, label]) => (
+                        <th
+                          key={field}
+                          className="text-left font-semibold text-ink3 px-2 py-1.5 border-b border-line bg-soft"
+                        >
+                          {label.replace(' *', '')}
+                        </th>
+                      ))}
+                    </tr>
+                  </thead>
+                  <tbody>
+                    {previewRows.map((row, i) => (
+                      <tr key={i}>
+                        {previewFields.map(([field]) => (
+                          <td
+                            key={field}
+                            className="px-2 py-1.5 border-b border-line last:border-0 max-w-[180px] truncate"
+                          >
+                            {row[mapping[field]] || <span className="text-ink3">—</span>}
+                          </td>
+                        ))}
+                      </tr>
+                    ))}
+                  </tbody>
+                </table>
+              </div>
+              <p className="text-[11px] text-ink3 mt-1">
+                Check these look right before importing. Anything mis-mapped, fix it above.
+              </p>
+            </div>
+          )}
+
           {hasExisting && !mapping.parcelid && (
             <Callout tone="warn">
               Map the Parcel ID column to carry statuses and notes over from the current dataset.
+            </Callout>
+          )}
+          {!mapping.landuse && (
+            <Callout tone="warn">
+              No land use column mapped, so every row imports instead of just {targetLabel}{' '}
+              properties.
+            </Callout>
+          )}
+          {!mapping.bldgsqft && !mapping.stories && (
+            <Callout tone="warn">
+              Neither building sq ft nor stories is mapped — every price will fall back to
+              assumptions rather than the building&apos;s real size.
+            </Callout>
+          )}
+          {!mapping.zip && (
+            <Callout tone="warn">
+              No ZIP column mapped. Route-density scoring and automatic market detection both rely
+              on it.
             </Callout>
           )}
           <div className="flex gap-2 mt-3 items-center flex-wrap">
@@ -360,6 +461,7 @@ export default function ImportPage() {
               onClick={() => {
                 setFile(null);
                 setMapping(null);
+                setSampleRows([]);
                 setProgress('');
               }}
             >

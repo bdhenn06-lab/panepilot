@@ -1,9 +1,11 @@
 import type { ScoringSettings, ServiceMode } from './types';
 
 /**
- * Default coefficients — identical to the prototype's DEF constants.
- * Local-market markers default to the Cincinnati design partner but are
- * plain org settings; nothing downstream assumes Hamilton County.
+ * Default coefficients — the pricing/scoring numbers come from the validated
+ * prototype. Market-specific fields (locality markers, company identity) start
+ * empty on purpose: they're filled from the org name at creation and from the
+ * imported parcels via detectLocality(), so a workspace in any state is never
+ * silently scored against someone else's market.
  */
 export const DEFAULT_SETTINGS: ScoringSettings = {
   serviceMode: 'commercial',
@@ -29,15 +31,15 @@ export const DEFAULT_SETTINGS: ScoringSettings = {
   weightBuyer: 20,
   weightPortfolio: 15,
   weightDensity: 15,
-  localState: 'OH',
-  localCity: 'Cincinnati',
-  localZipPrefix: '45',
-  regionState: 'OH',
-  companyName: 'Whiteline Window Washing',
+  localState: '',
+  localCity: '',
+  localZipPrefix: '',
+  regionState: '',
+  companyName: '',
   contactName: '',
   contactPhone: '',
   contactEmail: '',
-  homeBase: 'Cincinnati, OH',
+  homeBase: '',
 };
 
 /** Fill any missing keys with defaults (settings rows written by older versions). */
