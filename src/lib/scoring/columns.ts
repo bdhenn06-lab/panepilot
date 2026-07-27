@@ -61,7 +61,15 @@ const RULES: Record<ImportField, FieldRule> = {
   },
   owner: {
     avoid: /addr|city|state|zip|mail|phone/i,
-    prefer: [/own.*name/i, /^own\d*$/i, /deed|grantee|taxpayer/i, /^owner/i, /name1/i],
+    prefer: [
+      /own.*name/i,
+      /^own\d*$/i,
+      /^owner/i,
+      // Must mention an owner: a bare /deed/ matches DEED_BOOK / DEED_PAGE,
+      // which are recording references, not names (seen in Wake County, NC).
+      /deed(ed)?_?own|grantee|taxpayer/i,
+      /name1/i,
+    ],
   },
   mailing: {
     // Several exports (Florida's NAL, most CAMA dumps) call the mailing
@@ -72,8 +80,16 @@ const RULES: Record<ImportField, FieldRule> = {
     avoid: /zoning/i,
     prefer: [
       /land_?use/i,
+      // Where a coded column and its readable twin both exist, take the twin:
+      // "Commercial" classifies better than "43". Land-specific first, so a
+      // generic *_DECODE (Wake's BILLING_CLASS_DECODE) can't win.
+      /land_?class_?(code|desc|decode)/i,
+      /land_?class/i,
       /(dor|state|prop|property)_?_?(uc|use|class)/i,
+      /(use|class)_?(code|desc|decode)/i,
       /use_?(code|desc|cd)/i,
+      // Ohio's statewide layer names it StateLUC.
+      /(^|_)luc(_|$)|stateluc/i,
       /^luc/i,
       /class.*desc/i,
       /prop.*class/i,
@@ -121,8 +137,12 @@ const RULES: Record<ImportField, FieldRule> = {
     ],
   },
   parcelid: {
+    // Internal surrogate keys aren't stable public parcel numbers, and
+    // carryover across re-imports matches on this value.
+    avoid: /_pk$|^fid$|^objectid|globalid/i,
     prefer: [
       /parcel.*(id|no|num)/i,
+      /^pin(_?num)?$/i,
       /^par(id|cel)/i,
       /^pin$/i,
       /^apn$/i,
@@ -135,12 +155,14 @@ const RULES: Record<ImportField, FieldRule> = {
     avoid: /remodel|sold|sale|reno/i,
     prefer: [/year.*built/i, /yr.*blt/i, /(act|eff).*yr/i, /yr.*built/i, /built/i],
   },
+  // Any header starting with "own" describes the owner, not the property —
+  // CAGIS uses OWNADCITY / OWNADZIP for the owner's mailing address.
   city: {
-    avoid: /mail|owner|^own[_\d]|tax/i,
+    avoid: /mail|^own|owner|tax/i,
     prefer: [new RegExp(`${SITUS}_?.*city`, 'i'), /^city$/i, /city/i, /municipal/i],
   },
   zip: {
-    avoid: /mail|owner|^own[_\d]|tax/i,
+    avoid: /mail|^own|owner|tax/i,
     prefer: [new RegExp(`${SITUS}_?.*zip`, 'i'), /^zip/i, /zip/i, /postal/i],
   },
   lat: {

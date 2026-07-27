@@ -9,6 +9,7 @@ import { useToast } from '@/components/toast';
 import { Button, Callout, Card, Ghost } from '@/components/ui';
 import { IconTrash, IconUpload } from '@/components/icons';
 import { Loading } from '@/components/loading';
+import { CountyPicker } from '@/components/county-picker';
 import { remapPipeline, snapshotPipeline, type PipelineSnapshot } from '@/lib/carryover';
 import type { TablesInsert } from '@/lib/db/database.types';
 import {
@@ -123,27 +124,120 @@ export default function ImportPage() {
    * overwrites a deliberate choice. Written directly (not via the debounced
    * saveSettings) so the refresh below reads the new values.
    */
-  async function applyDetectedLocality(rows: TablesInsert<'parcels'>[]): Promise<string> {
+  async function applyDetectedLocality(
+    rows: TablesInsert<'parcels'>[],
+    fallbackState?: string,
+  ): Promise<string> {
     const s = ws.settings;
     if (s.regionState && s.localState && s.localCity && s.localZipPrefix) return '';
     const detected = detectLocality(
       rows.map((r) => ({ address: r.address, city: r.city ?? null, zip: r.zip ?? null })),
     );
-    if (!detected) return '';
+    // Some sources (Ohio's statewide layer) publish no ZIPs, so the state can't
+    // be inferred from the data — but a catalogued county already knows it.
+    const regionState = detected?.regionState || fallbackState || '';
+    if (!detected && !regionState) return '';
+
     const { error: setErr } = await supabase
       .from('org_settings')
       .update({
-        region_state: s.regionState || detected.regionState,
-        local_state: s.localState || detected.localState,
-        local_city: s.localCity || detected.localCity,
-        local_zip_prefix: s.localZipPrefix || detected.localZipPrefix,
+        region_state: s.regionState || regionState,
+        local_state: s.localState || detected?.localState || regionState,
+        local_city: s.localCity || detected?.localCity || '',
+        local_zip_prefix: s.localZipPrefix || detected?.localZipPrefix || '',
       })
       .eq('org_id', ws.orgId);
     if (setErr) return '';
-    const where = [detected.localCity, detected.regionState].filter(Boolean).join(', ');
-    return `market set to ${where}`;
+    const where = [detected?.localCity, regionState].filter(Boolean).join(', ');
+    return where ? `market set to ${where}` : '';
   }
 
+  /**
+   * The one commit path, shared by the CSV upload and the county picker:
+   * snapshot the pipeline, swap the dataset, reattach statuses/notes/routes,
+   * then fill in the workspace's market.
+   */
+  async function commitRows(
+    rows: TablesInsert<'parcels'>[],
+    sourceLabel: string,
+    fallbackState?: string,
+  ) {
+    if (!rows.length) {
+      setError(`No ${targetLabel} rows with an address were found. Check the mapping or source.`);
+      return;
+    }
+
+    // Carryover: snapshot the pipeline before touching anything.
+    const snapshot = hasExisting ? snapshotPipeline(ws.parcels, ws.states, ws.route) : null;
+    if (hasExisting) {
+      const carried = snapshot!.states.size;
+      const hasParcelIds = rows.some((r) => r.parcel_number);
+      const note = !hasParcelIds
+        ? 'These rows carry no parcel IDs, so nothing can carry over — all statuses and notes will be lost.'
+        : carried
+          ? `${carried} statuses/notes will carry over automatically by parcel ID.`
+          : 'No statuses or notes exist yet, nothing to carry over.';
+      if (
+        !confirm(
+          `Replace the current ${formatNum(ws.parcels.length)} parcels with ${formatNum(rows.length)} from "${sourceLabel}"?\n\n${note}`,
+        )
+      )
+        return;
+    }
+
+    setBusy(true);
+    setError('');
+    try {
+      if (hasExisting) {
+        setProgress('Clearing previous dataset…');
+        const { error: rpcErr } = await supabase.rpc('clear_org_parcels', { target_org: ws.orgId });
+        if (rpcErr) throw new Error(rpcErr.message);
+      }
+
+      setProgress(`Uploading ${formatNum(rows.length)} parcels…`);
+      const newIdByParcelNumber = new Map<string, number>();
+      for (let i = 0; i < rows.length; i += BATCH) {
+        const { data, error: insErr } = await supabase
+          .from('parcels')
+          .insert(rows.slice(i, i + BATCH))
+          .select('id, parcel_number');
+        if (insErr) throw new Error(`Upload error at row ${i}: ${insErr.message}`);
+        for (const r of data ?? []) {
+          const pn = (r.parcel_number as string | null)?.trim();
+          if (pn && !newIdByParcelNumber.has(pn)) newIdByParcelNumber.set(pn, r.id as number);
+        }
+        setProgress(`Uploaded ${formatNum(Math.min(i + BATCH, rows.length))} / ${formatNum(rows.length)}…`);
+      }
+
+      let carried = 0;
+      if (snapshot && (snapshot.states.size || snapshot.routeParcelNumbers.length)) {
+        setProgress('Reattaching statuses, notes, and routes…');
+        carried = await restorePipeline(snapshot, newIdByParcelNumber);
+      }
+
+      const detectedNote = await applyDetectedLocality(rows, fallbackState);
+
+      setProgress('');
+      await ws.refresh();
+      setBusy(false);
+      toast(
+        [
+          'Territory imported',
+          carried ? `${formatNum(carried)} statuses/notes carried over` : '',
+          detectedNote,
+        ]
+          .filter(Boolean)
+          .join(' — '),
+      );
+      router.push('/dashboard');
+    } catch (e) {
+      setBusy(false);
+      setProgress('');
+      setError(e instanceof Error ? e.message : String(e));
+    }
+  }
+
+  /** Parse the chosen CSV with the confirmed mapping, then commit. */
   async function runImport() {
     if (!file || !mapping) return;
     if (!mapping.address) {
@@ -151,23 +245,6 @@ export default function ImportPage() {
       return;
     }
     const m = mapping;
-
-    // Carryover: snapshot the pipeline before touching anything.
-    const snapshot = hasExisting ? snapshotPipeline(ws.parcels, ws.states, ws.route) : null;
-    if (hasExisting) {
-      const carried = snapshot!.states.size;
-      const note = !m.parcelid
-        ? 'The Parcel ID column is NOT mapped, so nothing can carry over — all statuses and notes will be lost.'
-        : carried
-          ? `${carried} statuses/notes will carry over automatically by parcel ID.`
-          : 'No statuses or notes exist yet, nothing to carry over.';
-      if (
-        !confirm(
-          `Replace the current ${formatNum(ws.parcels.length)} parcels with "${file.name}"?\n\n${note}`,
-        )
-      )
-        return;
-    }
 
     setBusy(true);
     setError('');
@@ -208,60 +285,10 @@ export default function ImportPage() {
       });
     });
 
-    // Only clear the old dataset once the new file has proven parseable.
-    if (!kept.length) {
-      setBusy(false);
-      setError(`No ${targetLabel} rows with an address were found. Check the column mapping.`);
-      return;
-    }
-
-    try {
-      if (hasExisting) {
-        setProgress('Clearing previous dataset…');
-        const { error: rpcErr } = await supabase.rpc('clear_org_parcels', { target_org: ws.orgId });
-        if (rpcErr) throw new Error(rpcErr.message);
-      }
-
-      setProgress(`Uploading ${formatNum(kept.length)} parcels…`);
-      const newIdByParcelNumber = new Map<string, number>();
-      for (let i = 0; i < kept.length; i += BATCH) {
-        const { data, error: insErr } = await supabase
-          .from('parcels')
-          .insert(kept.slice(i, i + BATCH))
-          .select('id, parcel_number');
-        if (insErr) throw new Error(`Upload error at row ${i}: ${insErr.message}`);
-        for (const r of data ?? []) {
-          const pn = (r.parcel_number as string | null)?.trim();
-          if (pn && !newIdByParcelNumber.has(pn)) newIdByParcelNumber.set(pn, r.id as number);
-        }
-        setProgress(`Uploaded ${formatNum(Math.min(i + BATCH, kept.length))} / ${formatNum(kept.length)}…`);
-      }
-
-      let carried = 0;
-      if (snapshot && (snapshot.states.size || snapshot.routeParcelNumbers.length)) {
-        setProgress('Reattaching statuses, notes, and routes…');
-        carried = await restorePipeline(snapshot, newIdByParcelNumber);
-      }
-
-      const detectedNote = await applyDetectedLocality(kept);
-
-      setProgress('');
-      await ws.refresh();
-      setBusy(false);
-      toast(
-        [
-          'Territory imported',
-          carried ? `${formatNum(carried)} statuses/notes carried over` : '',
-          detectedNote,
-        ]
-          .filter(Boolean)
-          .join(' — '),
-      );
-      router.push('/dashboard');
-    } catch (e) {
-      setBusy(false);
-      setError(e instanceof Error ? e.message : String(e));
-    }
+    // Nothing is cleared until the new data has proven parseable.
+    setBusy(false);
+    setProgress('');
+    await commitRows(kept, file.name);
   }
 
   async function clearWorkspace() {
@@ -308,28 +335,21 @@ export default function ImportPage() {
         </>
       )}
 
-      {!hasExisting && (
-        <Card className="mb-3">
-          <ol className="list-decimal ml-4.5 text-[12.5px] text-ink2 space-y-1">
-            <li>
-              Download your county&apos;s parcel CSV — e.g. Hamilton County via the{' '}
-              <a
-                href="https://data-cagisportal.opendata.arcgis.com"
-                target="_blank"
-                rel="noreferrer"
-                className="text-accent-dark"
-              >
-                CAGIS Open Data Hub
-              </a>{' '}
-              (search &quot;parcel&quot; → Download CSV). Any county&apos;s export works.
-            </li>
-            <li>Drop it below — headers auto-map, including lat/long if present (unlocks the map).</li>
-            <li>
-              Parsing happens in your browser; only the extracted {targetLabel} rows upload, in
-              batches.
-            </li>
-          </ol>
-        </Card>
+      {!file && (!hasExisting || isAdmin) && (
+        <CountyPicker
+          mode={isResidentialOrg ? 'residential' : 'commercial'}
+          orgId={ws.orgId}
+          disabled={busy}
+          onRows={(rows, label, state) => void commitRows(rows, label, state)}
+        />
+      )}
+
+      {!file && (!hasExisting || isAdmin) && (
+        <p className="text-[12.5px] text-ink2 mb-2 mt-4">
+          <b>Or upload a CSV.</b> Use this when your county isn&apos;t reachable above, or when you
+          have a richer export (a prepared file with building sizes beats most public services).
+          Parsing happens in your browser; only the {targetLabel} rows upload.
+        </p>
       )}
 
       {!file && (!hasExisting || isAdmin) && (

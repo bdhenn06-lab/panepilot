@@ -114,6 +114,61 @@ describe('guessColumns across county export formats', () => {
   });
 });
 
+/**
+ * These are verbatim field lists pulled from the live services, so they're the
+ * real regression guard for the county-import feature.
+ */
+describe('guessColumns against live county services', () => {
+  it('Wake County, NC (maps.wake.gov) — the schema that exposed two bugs', () => {
+    const g = guessColumns([
+      'OBJECTID', 'SHAPE', 'PIN_NUM', 'CALC_AREA', 'REID', 'MAP_NAME', 'OWNER',
+      'ADDR1', 'ADDR2', 'ADDR3', 'DEED_BOOK', 'DEED_PAGE', 'DEED_DATE', 'DEED_ACRES',
+      'BLDG_VAL', 'LAND_VAL', 'TOTAL_VALUE_ASSD', 'BILLCLASS', 'BILLING_CLASS_DECODE',
+      'PROPDESC', 'HEATEDAREA', 'STNAME', 'SITE_ADDRESS', 'CITY', 'CITY_DECODE',
+      'YEAR_BUILT', 'TYPE_AND_USE', 'TYPE_USE_DECODE', 'LAND_CLASS',
+      'LAND_CLASS_DECODE', 'ZIPNUM', 'PARCEL_PK',
+    ]);
+    // DEED_BOOK is a recording reference, not a name — it used to win here.
+    expect(g.owner).toBe('OWNER');
+    // Land use lives in a *_DECODE column; nothing matched before.
+    expect(g.landuse).toBe('LAND_CLASS_DECODE');
+    expect(g.address).toBe('SITE_ADDRESS');
+    expect(g.bldgsqft).toBe('HEATEDAREA');
+    expect(g.value).toBe('TOTAL_VALUE_ASSD');
+    expect(g.zip).toBe('ZIPNUM');
+    expect(g.yearbuilt).toBe('YEAR_BUILT');
+    expect(g.parcelid).toBe('PIN_NUM');
+  });
+
+  it("Ohio statewide layer (OGRIP) — land use is 'StateLUC'", () => {
+    const g = guessColumns([
+      'OBJECTID', 'County', 'LocalParcelID', 'StateParcelID', 'StateLUC',
+      'SitusAddressAll', 'MailAddressAll', 'MailCity', 'MailZip', 'MailState',
+      'LandArea', 'CurrentTo', 'CAMADataSite',
+    ]);
+    expect(g.landuse).toBe('StateLUC');
+    expect(g.address).toBe('SitusAddressAll');
+    // Only mailing city/ZIP exist; they must not be taken as the property's.
+    expect(g.city).toBe('');
+    expect(g.zip).toBe('');
+    // LandArea is lot size, never building area.
+    expect(g.bldgsqft).toBe('');
+  });
+
+  it('Hamilton County CAGIS parcel polygons (live field list)', () => {
+    const g = guessColumns([
+      'OBJECTID', 'PARCELID', 'OWNNM1', 'OWNNM2', 'OWNAD1', 'OWNADCITY',
+      'OWNADSTATE', 'OWNADZIP', 'ADDRNO', 'ADDRST', 'ADDRSF', 'CLASS',
+      'MKTLND', 'MKTIMP', 'MKT_TOTAL_VAL', 'PREVOWN1',
+    ]);
+    expect(g.landuse).toBe('CLASS');
+    expect(g.value).toBe('MKT_TOTAL_VAL');
+    // Owner mailing columns must not be read as the property's city/ZIP.
+    expect(g.city).toBe('');
+    expect(g.zip).toBe('');
+  });
+});
+
 describe('guessColumns precedence rules', () => {
   it('prefers the property city/ZIP even when mailing columns come first', () => {
     // Column order must not decide this: picking the owner's mailing city
