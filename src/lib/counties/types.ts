@@ -47,6 +47,8 @@ export interface CountySource {
   fields: CountyFieldMap;
   /** Server-side filters so we page only the rows we want. */
   where: { commercial: string; residential: string };
+  /** Object ID field name for stable paging. Most services use 'OBJECTID'; some (SANDAG) use lowercase. */
+  objectIdField?: string;
   coverage: CountyCoverage;
   /** Shown in the picker — caveats, or a better alternative. */
   note?: string;

@@ -12,6 +12,7 @@ import type { CountySource } from '../types';
 
 const wake = findSource('nc-wake')!;
 const hamilton = findSource('oh-hamilton-cagis')!;
+const sandiego = findSource('ca-sandiego-sandag')!;
 
 /** URLSearchParams encodes spaces as "+", which decodeURIComponent leaves alone. */
 const readable = (url: string) => decodeURIComponent(url).replace(/\+/g, ' ');
@@ -74,6 +75,20 @@ describe('buildQueryUrl', () => {
   it('uses the residential filter when asked', () => {
     const url = readable(buildQueryUrl(wake, { mode: 'residential' }));
     expect(url).toContain(wake.where.residential);
+  });
+
+  it('orders by a source-specific object ID field when the service uses lowercase names', () => {
+    // SANDAG's service rejects the default 'OBJECTID' — it only has 'objectid'.
+    expect(buildQueryUrl(sandiego, { mode: 'commercial' })).toContain('orderByFields=objectid');
+    expect(buildQueryUrl(wake, { mode: 'commercial' })).toContain('orderByFields=OBJECTID');
+  });
+
+  it('classifies San Diego by nucleus_use_cd family, derived from live value/sqft statistics', () => {
+    // No published lookup table exists for this field; family 1xx is grouped
+    // stats' single-family-sized buildings, 2xx/3xx jump to commercial scale.
+    expect(sandiego.where.residential).toContain("LIKE '1%'");
+    expect(sandiego.where.commercial).toContain("LIKE '2%'");
+    expect(sandiego.where.commercial).toContain("LIKE '3%'");
   });
 
   it('requests each parcel\'s own centroid in WGS84', () => {
@@ -152,6 +167,33 @@ describe('normalizeFeature', () => {
   it('normalizes ZIP+4 down to five digits', () => {
     const row = normalizeFeature({ SITE_ADDRESS: '1 A St', ZIPNUM: '27612-1403' }, wake)!;
     expect(row.zip).toBe('27612');
+  });
+
+  it('composes a real San Diego row (5-part address, padded ZIP+4, no owner)', () => {
+    // Verbatim live sample: 1640 Chase Ln, El Cajon.
+    const row = normalizeFeature(
+      {
+        apn: '4982603900',
+        situs_address: 1640,
+        situs_pre_dir: '',
+        situs_street: 'CHASE',
+        situs_suffix: 'LN',
+        situs_post_dir: '',
+        situs_community: 'EL CAJON',
+        situs_zip: '92020-8306',
+        asr_total: 153676,
+        total_lvg_area: 1467,
+        nucleus_use_cd: '109',
+      },
+      sandiego,
+    )!;
+    expect(row.address).toBe('1640 CHASE LN');
+    expect(row.city).toBe('EL CAJON');
+    expect(row.zip).toBe('92020');
+    expect(row.market_value).toBe(153676);
+    expect(row.bldg_sqft).toBe(1467);
+    // SANDAG's open layer publishes no owner name at all.
+    expect(row.owner_name).toBeNull();
   });
 
   it('treats zero and unparseable numbers as absent', () => {

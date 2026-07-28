@@ -63,7 +63,7 @@ export function buildQueryUrl(
     params.set('resultOffset', String(opts.offset ?? 0));
     params.set('resultRecordCount', String(opts.limit ?? PAGE_SIZE));
     // Stable paging: without an order the service may repeat or skip rows.
-    params.set('orderByFields', 'OBJECTID');
+    params.set('orderByFields', source.objectIdField || 'OBJECTID');
     // A parcel's own centroid beats mailing-address geocoding: it needs no
     // city/ZIP to disambiguate (several sources, e.g. Hamilton's CAGIS layer,
     // publish neither) and it's exact rather than street-interpolated. Older

@@ -117,6 +117,41 @@ const DEDICATED: CountySource[] = [
     },
     coverage: { owner: true, bldgSqft: true, value: true, zip: true },
   },
+  {
+    id: 'ca-sandiego-sandag',
+    state: 'CA',
+    county: 'San Diego',
+    label: 'San Diego County, CA (SANDAG)',
+    serviceUrl: 'https://geo.sandag.org/server/rest/services/Hosted/Parcels/FeatureServer/0',
+    fields: {
+      parcelid: 'apn',
+      // Situs address is split across number / direction / street / suffix / direction.
+      address: ['situs_address', 'situs_pre_dir', 'situs_street', 'situs_suffix', 'situs_post_dir'],
+      city: 'situs_community',
+      zip: 'situs_zip',
+      landuse: 'nucleus_use_cd',
+      bldgsqft: 'total_lvg_area',
+      value: 'asr_total',
+      yearbuilt: 'year_effective',
+    },
+    // nucleus_use_cd has no published lookup table for this layer, so the
+    // filter is derived from the live data itself: grouped stats show family
+    // 1xx is overwhelmingly single-family-sized buildings and values (the
+    // 110/111 codes alone cover 525k of San Diego's 855k residential-family
+    // rows), while 2xx/3xx jump to commercial/industrial-scale buildings and
+    // assessed values. Everything else (000 exempt, 5xx-6xx agricultural
+    // acreage, 8xx-9xx near-zero-value parcels) is ambiguous and deliberately
+    // excluded from both rather than guessed into the wrong one.
+    where: {
+      commercial: `nucleus_use_cd LIKE '2%' OR nucleus_use_cd LIKE '3%'`,
+      residential: `nucleus_use_cd LIKE '1%'`,
+    },
+    // Unlike every other catalogued source, SANDAG's field names are all lowercase.
+    objectIdField: 'objectid',
+    coverage: { owner: false, bldgSqft: true, value: true, zip: true },
+    note:
+      "San Diego's open parcel layer has no owner name, so there's no portfolio grouping here — building size, value, and ZIP are all included.",
+  },
 ];
 
 /** Every source, dedicated ones first, then statewide fallbacks. */
