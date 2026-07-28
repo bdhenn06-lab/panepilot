@@ -64,6 +64,14 @@ export function buildQueryUrl(
     params.set('resultRecordCount', String(opts.limit ?? PAGE_SIZE));
     // Stable paging: without an order the service may repeat or skip rows.
     params.set('orderByFields', 'OBJECTID');
+    // A parcel's own centroid beats mailing-address geocoding: it needs no
+    // city/ZIP to disambiguate (several sources, e.g. Hamilton's CAGIS layer,
+    // publish neither) and it's exact rather than street-interpolated. Older
+    // MapServer endpoints (e.g. Wake County) silently ignore this and omit
+    // `centroid` from the response — those rows fall back to the Census
+    // geocode button, which works fine there since it has city and ZIP.
+    params.set('returnCentroid', 'true');
+    params.set('outSR', '4326');
   }
   return `${source.serviceUrl.replace(/\/$/, '')}/query?${params.toString()}`;
 }
@@ -81,10 +89,15 @@ function numOrNull(attrs: Record<string, unknown>, ref: FieldRef | undefined): n
  * Turn one ArcGIS feature's attributes into a parcel row. Returns null when
  * there's no usable street address, since everything downstream (outreach,
  * proposals, geocoding, routes) is keyed off it.
+ *
+ * `centroid` is the feature's own `{x: lon, y: lat}`, requested alongside the
+ * attributes (see `buildQueryUrl`) — present on most services, absent on a
+ * few older ones, in which case the row falls back to street geocoding.
  */
 export function normalizeFeature(
   attrs: Record<string, unknown>,
   source: CountySource,
+  centroid?: { x: number; y: number } | null,
 ): NormalizedParcel | null {
   const f = source.fields;
   const address = composeField(attrs, f.address);
@@ -92,6 +105,8 @@ export function normalizeFeature(
 
   const zipRaw = composeField(attrs, f.zip);
   const year = numOrNull(attrs, f.yearbuilt);
+  const lat = centroid && Number.isFinite(centroid.y) ? centroid.y : null;
+  const lon = centroid && Number.isFinite(centroid.x) ? centroid.x : null;
 
   return {
     parcel_number: composeField(attrs, f.parcelid) || null,
@@ -105,6 +120,8 @@ export function normalizeFeature(
     stories: numOrNull(attrs, f.stories),
     market_value: numOrNull(attrs, f.value),
     year_built: year ? Math.round(year) : null,
+    lat,
+    lon,
   };
 }
 

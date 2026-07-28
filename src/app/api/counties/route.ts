@@ -23,6 +23,7 @@ export const maxDuration = 60;
 
 interface ArcGisFeature {
   attributes: Record<string, unknown>;
+  centroid?: { x: number; y: number } | null;
 }
 
 async function fetchArcGis(url: string): Promise<Record<string, unknown>> {
@@ -104,7 +105,7 @@ export async function POST(request: Request) {
     const json = await fetchArcGis(url);
     const features = (json.features as ArcGisFeature[] | undefined) ?? [];
     const parcels = features
-      .map((f) => normalizeFeature(f.attributes ?? {}, source))
+      .map((f) => normalizeFeature(f.attributes ?? {}, source, f.centroid))
       .filter((p): p is NonNullable<typeof p> => p !== null);
 
     return NextResponse.json({

@@ -75,6 +75,15 @@ describe('buildQueryUrl', () => {
     const url = readable(buildQueryUrl(wake, { mode: 'residential' }));
     expect(url).toContain(wake.where.residential);
   });
+
+  it('requests each parcel\'s own centroid in WGS84', () => {
+    // A parcel's centroid geocodes it exactly and needs no city/ZIP to
+    // disambiguate — several sources (Hamilton's CAGIS layer included)
+    // publish neither, which broke Census street geocoding for those rows.
+    const url = buildQueryUrl(wake, { mode: 'commercial' });
+    expect(url).toContain('returnCentroid=true');
+    expect(url).toContain('outSR=4326');
+  });
 });
 
 describe('normalizeFeature', () => {
@@ -123,6 +132,21 @@ describe('normalizeFeature', () => {
   it('drops rows with no usable address', () => {
     expect(normalizeFeature({ OWNER: 'X' }, wake)).toBeNull();
     expect(normalizeFeature({ SITE_ADDRESS: '   ' }, wake)).toBeNull();
+  });
+
+  it('reads lat/lon from the feature centroid when the service returns one', () => {
+    const withCentroid = normalizeFeature(
+      { SITE_ADDRESS: '1 A St' },
+      wake,
+      { x: -84.6077, y: 39.0768 },
+    )!;
+    expect(withCentroid.lon).toBe(-84.6077);
+    expect(withCentroid.lat).toBe(39.0768);
+
+    // Older MapServer endpoints (e.g. Wake County) silently omit centroid.
+    const without = normalizeFeature({ SITE_ADDRESS: '1 A St' }, wake)!;
+    expect(without.lat).toBeNull();
+    expect(without.lon).toBeNull();
   });
 
   it('normalizes ZIP+4 down to five digits', () => {

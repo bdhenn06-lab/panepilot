@@ -151,8 +151,8 @@ export function CountyPicker({
             market_value: p.market_value,
             year_built: p.year_built,
             parcel_number: p.parcel_number,
-            lat: null,
-            lon: null,
+            lat: p.lat,
+            lon: p.lon,
           });
         }
         // A short page means the service has no more rows for this filter.

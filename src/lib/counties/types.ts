@@ -65,4 +65,6 @@ export interface NormalizedParcel {
   stories: number | null;
   market_value: number | null;
   year_built: number | null;
+  lat: number | null;
+  lon: number | null;
 }
