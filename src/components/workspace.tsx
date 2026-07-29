@@ -28,10 +28,12 @@ import {
   advanceTouch,
   buildContext,
   estimate,
+  jobThesis,
   paneScore,
   todayISO,
   withDefaults,
   type Estimate,
+  type JobThesis,
   type ParcelInput,
   type ProspectState,
   type ScoreBreakdown,
@@ -44,6 +46,8 @@ export interface ScoredParcel {
   input: ParcelInput;
   est: Estimate;
   score: ScoreBreakdown;
+  /** Money-and-action summary shown in place of the raw score. */
+  thesis: JobThesis;
 }
 
 interface WorkspaceValue {
@@ -229,7 +233,14 @@ export function WorkspaceProvider({
     const ctx = buildContext(inputs);
     const list: ScoredParcel[] = parcels.map((row, i) => {
       const est = estimate(inputs[i], settings);
-      return { id: row.id, row, input: inputs[i], est, score: paneScore(inputs[i], est, ctx, settings) };
+      return {
+        id: row.id,
+        row,
+        input: inputs[i],
+        est,
+        score: paneScore(inputs[i], est, ctx, settings),
+        thesis: jobThesis(inputs[i], est, ctx, settings),
+      };
     });
     list.sort((a, b) => b.score.total - a.score.total || b.est.annualQuarterly - a.est.annualQuarterly);
     return { scored: list, byId: new Map(list.map((x) => [x.id, x])) };

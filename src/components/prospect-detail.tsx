@@ -9,9 +9,17 @@ import {
   STATUSES,
   TOUCHES,
   callScript,
+  formatMoney,
   googleMapsSearchUrl,
   touchEmail,
 } from '@/lib/scoring';
+
+/** Confidence is only useful if a low one actually looks different. */
+const CONFIDENCE_TONE: Record<string, string> = {
+  high: 'text-good',
+  medium: 'text-ink2',
+  low: 'text-warn',
+};
 
 async function copyText(text: string): Promise<boolean> {
   try {
@@ -32,6 +40,23 @@ export function ProspectDetail({ x }: { x: ScoredParcel }) {
   return (
     <div className="grid sm:grid-cols-2 gap-3.5">
       <div>
+        <div className="bg-soft rounded-lg p-3 mb-3">
+          <p className="text-[15px] font-semibold leading-tight">
+            {formatMoney(x.thesis.priceLow)}–{formatMoney(x.thesis.priceHigh)}{' '}
+            <span className="text-[11.5px] font-normal text-ink2">first clean</span>
+          </p>
+          <p className="text-[12.5px] text-ink2 mt-0.5">
+            <b>{formatMoney(x.thesis.annualValue)}/yr</b> on the quarterly plan ·{' '}
+            {x.thesis.crewNote}
+          </p>
+          <p className="text-[12.5px] mt-1.5">{x.thesis.headline}</p>
+          <p className="text-[10.5px] text-ink3 mt-1.5" title={x.thesis.confidenceWhy}>
+            <b className={CONFIDENCE_TONE[x.thesis.confidence]}>
+              {x.thesis.confidence.toUpperCase()} CONFIDENCE
+            </b>{' '}
+            · {x.thesis.confidenceWhy}
+          </p>
+        </div>
         <p className="text-[11px] font-semibold text-ink3 mb-1.5">WHY THIS SCORE</p>
         {x.score.parts.map((p) => (
           <div key={p.label} className="mb-1.5">

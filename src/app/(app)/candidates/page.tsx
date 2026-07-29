@@ -130,8 +130,11 @@ function CandidatesView() {
                   {x.row.city ? `, ${x.row.city}` : ''}
                 </p>
                 <p className="text-[11.5px] text-ink2">
-                  {x.row.owner_name || 'owner unknown'} · ~{formatNum(x.est.windows)} win ·{' '}
-                  {formatMoney(x.est.annualQuarterly)}/yr
+                  <b className="text-ink">
+                    {formatMoney(x.thesis.priceLow)}–{formatMoney(x.thesis.priceHigh)}
+                  </b>{' '}
+                  first clean · {formatMoney(x.est.annualQuarterly)}/yr ·{' '}
+                  {x.row.owner_name || 'owner unknown'}
                   {s?.status ? (
                     <>
                       {' · '}
@@ -148,6 +151,7 @@ function CandidatesView() {
                     </>
                   ) : null}
                 </p>
+                <p className="text-[11px] text-ink3 mt-0.5">{x.thesis.headline}</p>
               </div>
               <div className="flex items-center gap-2 min-w-[110px]">
                 <ScoreBar pct={x.score.total} />

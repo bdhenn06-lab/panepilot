@@ -8,6 +8,7 @@ import {
   DEFAULT_SETTINGS,
   buildContext,
   estimate,
+  jobThesis,
   paneScore,
 } from '@/lib/scoring';
 import { parcelToInput } from '@/lib/db/mappers';
@@ -84,6 +85,7 @@ export function scoreFixture(rows: ParcelRow[]): ScoredParcel[] {
       input: inputs[i],
       est,
       score: paneScore(inputs[i], est, ctx, DEFAULT_SETTINGS),
+      thesis: jobThesis(inputs[i], est, ctx, DEFAULT_SETTINGS),
     };
   });
   list.sort(

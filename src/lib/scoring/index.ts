@@ -5,6 +5,7 @@ export * from './locality';
 export * from './owner';
 export * from './estimate';
 export * from './score';
+export * from './thesis';
 export * from './cadence';
 export * from './columns';
 export * from './outreach';
