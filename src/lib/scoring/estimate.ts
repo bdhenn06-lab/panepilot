@@ -5,6 +5,7 @@ interface Assumption {
   stories: number;
   bldgSqft: number;
   assumed: boolean;
+  storiesAssumed: boolean;
 }
 
 /** Commercial size assumptions: bigger buildings get more assumed floors. */
@@ -12,6 +13,7 @@ function assumeCommercial(rawStories: number, rawSqft: number): Assumption {
   let stories = rawStories;
   let bldgSqft = rawSqft;
   let assumed = false;
+  const storiesAssumed = !stories;
   if (!stories) {
     stories = bldgSqft > 40000 ? 3 : bldgSqft > 15000 ? 2 : 1;
     assumed = true;
@@ -20,7 +22,7 @@ function assumeCommercial(rawStories: number, rawSqft: number): Assumption {
     bldgSqft = stories * 8000;
     assumed = true;
   }
-  return { stories, bldgSqft, assumed };
+  return { stories, bldgSqft, assumed, storiesAssumed };
 }
 
 /** Residential size assumptions: most homes are 1-2 stories. */
@@ -28,6 +30,7 @@ function assumeResidential(rawStories: number, rawSqft: number): Assumption {
   let stories = rawStories;
   let bldgSqft = rawSqft;
   let assumed = false;
+  const storiesAssumed = !stories;
   if (!stories) {
     stories = bldgSqft > 1600 ? 2 : 1;
     assumed = true;
@@ -36,7 +39,7 @@ function assumeResidential(rawStories: number, rawSqft: number): Assumption {
     bldgSqft = stories * 1200;
     assumed = true;
   }
-  return { stories, bldgSqft, assumed };
+  return { stories, bldgSqft, assumed, storiesAssumed };
 }
 
 /**
@@ -61,12 +64,13 @@ export function estimate(parcel: ParcelInput, s: ScoringSettings): Estimate {
   let stories: number;
   let bldgSqft: number;
   let assumed: boolean;
+  let storiesAssumed: boolean;
   let glassSqft: number;
   let windows: number;
   let pricePerClean: number;
 
   if (s.serviceMode === 'residential') {
-    ({ stories, bldgSqft, assumed } = assumeResidential(rawStories, rawSqft));
+    ({ stories, bldgSqft, assumed, storiesAssumed } = assumeResidential(rawStories, rawSqft));
     glassSqft = 0; // not a meaningful figure for the per-window residential model
     windows = Math.max(1, Math.round(bldgSqft / s.resSqftPerWindow));
     const upperStorySurcharge = 1 + Math.max(0, stories - 1) * (s.resUpperStoryPct / 100);
@@ -75,7 +79,7 @@ export function estimate(parcel: ParcelInput, s: ScoringSettings): Estimate {
       Math.round((windows * s.resPricePerWindow * upperStorySurcharge) / 5) * 5,
     );
   } else {
-    ({ stories, bldgSqft, assumed } = assumeCommercial(rawStories, rawSqft));
+    ({ stories, bldgSqft, assumed, storiesAssumed } = assumeCommercial(rawStories, rawSqft));
     const footprint = bldgSqft / Math.max(1, stories);
     const width = Math.sqrt(footprint / s.footprintAspect);
     const perimeter = 2 * (width + s.footprintAspect * width);
@@ -97,5 +101,6 @@ export function estimate(parcel: ParcelInput, s: ScoringSettings): Estimate {
     annualQuarterly: pricePerClean * 4 * (1 - s.quarterlyDiscountPct / 100),
     annualMonthly: pricePerClean * 12 * (1 - s.monthlyDiscountPct / 100),
     assumed,
+    storiesAssumed,
   };
 }

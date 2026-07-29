@@ -72,3 +72,38 @@ describe('estimate (facade model)', () => {
     expect(doubled.glassSqft).toBeCloseTo(base.glassSqft * 2, 6);
   });
 });
+
+/**
+ * `assumed` goes true when EITHER sq ft or stories had to be invented, so it
+ * can't tell the scorer which one. Story count specifically decides the
+ * floor-fit penalty, and penalising a building for a floor count we made up
+ * is the difference between "1-story retail" and "we have no idea".
+ */
+describe('estimate tracks which inputs were assumed', () => {
+  it('flags stories as assumed only when the county had no story count', () => {
+    const bothKnown = estimate({ address: 'x', bldgSqft: 20000, stories: 2 }, S);
+    expect(bothKnown.assumed).toBe(false);
+    expect(bothKnown.storiesAssumed).toBe(false);
+
+    // Stories on file, sq ft missing: `assumed` is true but stories are real.
+    const sqftMissing = estimate({ address: 'x', stories: 3 }, S);
+    expect(sqftMissing.assumed).toBe(true);
+    expect(sqftMissing.storiesAssumed).toBe(false);
+
+    // Sq ft on file, stories missing: the story count is a guess.
+    const storiesMissing = estimate({ address: 'x', bldgSqft: 20000 }, S);
+    expect(storiesMissing.assumed).toBe(true);
+    expect(storiesMissing.storiesAssumed).toBe(true);
+
+    // Nothing on file — the Hamilton case.
+    const nothing = estimate({ address: 'x' }, S);
+    expect(nothing.assumed).toBe(true);
+    expect(nothing.storiesAssumed).toBe(true);
+  });
+
+  it('flags assumed stories in residential mode too', () => {
+    const R = { ...S, serviceMode: 'residential' as const };
+    expect(estimate({ address: 'x', bldgSqft: 2400, stories: 2 }, R).storiesAssumed).toBe(false);
+    expect(estimate({ address: 'x', bldgSqft: 2400 }, R).storiesAssumed).toBe(true);
+  });
+});

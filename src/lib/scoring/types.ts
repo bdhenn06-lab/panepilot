@@ -95,6 +95,12 @@ export interface Estimate {
   annualMonthly: number;
   /** True when sq ft or stories had to be assumed. */
   assumed: boolean;
+  /**
+   * True when the story count specifically was invented. Kept separate from
+   * `assumed` because only this one decides the floor-fit penalty — a building
+   * with real stories but missing sq ft still deserves that penalty.
+   */
+  storiesAssumed: boolean;
 }
 
 export interface ScorePart {

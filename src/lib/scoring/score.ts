@@ -14,6 +14,17 @@ export function gradeOf(total: number): Grade {
   return total >= 70 ? 'A' : total >= 55 ? 'B' : total >= 40 ? 'C' : 'D';
 }
 
+/**
+ * Median of a pre-sorted list. Averaging the middle pair on even lengths
+ * matters: taking the upper element biases the threshold up, so fewer
+ * buildings ever clear the "above-median $/sqft" buyer signal.
+ */
+function median(sorted: number[]): number {
+  if (!sorted.length) return 0;
+  const mid = Math.floor(sorted.length / 2);
+  return sorted.length % 2 === 0 ? (sorted[mid - 1] + sorted[mid]) / 2 : sorted[mid];
+}
+
 /** Compute territory-wide aggregates needed to score individual parcels. */
 export function buildContext(parcels: ParcelInput[]): TerritoryContext {
   const zipCounts: Record<string, number> = {};
@@ -35,9 +46,7 @@ export function buildContext(parcels: ParcelInput[]): TerritoryContext {
     zipCounts,
     zipMax,
     ownerCounts,
-    medianValuePerSqft: valuesPerSqft.length
-      ? valuesPerSqft[Math.floor(valuesPerSqft.length / 2)]
-      : 0,
+    medianValuePerSqft: median(valuesPerSqft),
   };
 }
 
@@ -91,9 +100,14 @@ export function paneScore(
   // Story count only differentiates commercial buildings (a 20-story tower
   // is a worse target than a 4-story office); nearly all homes are 1-2
   // stories, so residential mode skips the floor-based dampening entirely.
+  //
+  // A story count we invented carries no information, so it must not move the
+  // score either way. Most counties publish no story count at all, and the
+  // estimator's fallback guesses 1 — which used to collect the short-building
+  // penalty and quietly bury ground-floor retail, banks and medical offices.
   const uc = classifyUse(parcel.landUse);
   const floorFit =
-    s.serviceMode === 'residential'
+    s.serviceMode === 'residential' || est.storiesAssumed
       ? 1
       : est.stories >= s.minFloors && est.stories <= s.maxFloors
         ? 1
@@ -103,7 +117,9 @@ export function paneScore(
   const fitWhy =
     s.serviceMode === 'residential'
       ? `${uc.kind}, ${est.stories} ${est.stories === 1 ? 'story' : 'stories'}`
-      : `${uc.kind}, ${est.stories} fl (sweet spot ${s.minFloors}–${s.maxFloors})`;
+      : est.storiesAssumed
+        ? `${uc.kind}, floor count unknown — not scored on height`
+        : `${uc.kind}, ${est.stories} fl (sweet spot ${s.minFloors}–${s.maxFloors})`;
   add('Building fit', uc.multiplier * floorFit * s.weightFit, s.weightFit, fitWhy);
 
   // 3. Buyer signal: owner on file, local decision-maker, above-median asset.

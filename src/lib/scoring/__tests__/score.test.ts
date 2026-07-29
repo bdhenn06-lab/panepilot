@@ -179,3 +179,47 @@ describe('isLocalMailing (configurable, replaces the prototype regex)', () => {
     expect(isLocalMailing('4501 Elm St, Lexington KY 40502', S)).toBe(false);
   });
 });
+
+/**
+ * Two arithmetic defects found in review. Both silently distort ranking on the
+ * data-sparse counties that make up most of the catalog.
+ */
+describe('scoring arithmetic defects', () => {
+  it('does not apply the short-building penalty to an invented story count', () => {
+    // Hamilton publishes no sq ft or stories, so every parcel was assumed to be
+    // 1 story and then penalised 55% for being 1 story — crushing ground-floor
+    // retail, banks and standalone medical offices, which are core prospects.
+    const bare: ParcelInput = { address: '1 Retail Row', landUse: 'Retail', zip: '45202' };
+    const ctx = buildContext([bare]);
+    const est = estimate(bare, S);
+    expect(est.storiesAssumed).toBe(true);
+
+    const fit = paneScore(bare, est, ctx, S).parts.find((p) => p.label === 'Building fit')!;
+    // retail multiplier 0.9 x weight 20, with no floor penalty applied.
+    expect(fit.points).toBeCloseTo(18, 5);
+  });
+
+  it('still penalises a genuinely short building when the county said so', () => {
+    const known: ParcelInput = { address: '1 Retail Row', landUse: 'Retail', bldgSqft: 9000, stories: 1 };
+    const ctx = buildContext([known]);
+    const est = estimate(known, S);
+    expect(est.storiesAssumed).toBe(false);
+
+    const fit = paneScore(known, est, ctx, S).parts.find((p) => p.label === 'Building fit')!;
+    // 0.9 x 0.45 x 20 — the penalty is real information here, so it stands.
+    expect(fit.points).toBeCloseTo(8.1, 5);
+  });
+
+  it('takes the true median value per sqft on an even-length territory', () => {
+    // v[floor(len/2)] returns the upper element, biasing the "above median"
+    // buyer signal so fewer buildings ever qualify.
+    const mk = (mv: number): ParcelInput => ({ address: `${mv} St`, bldgSqft: 1, marketValue: mv });
+    const ctx = buildContext([mk(1), mk(2), mk(3), mk(4)]);
+    expect(ctx.medianValuePerSqft).toBe(2.5);
+  });
+
+  it('still takes the middle element on an odd-length territory', () => {
+    const mk = (mv: number): ParcelInput => ({ address: `${mv} St`, bldgSqft: 1, marketValue: mv });
+    expect(buildContext([mk(1), mk(2), mk(3)]).medianValuePerSqft).toBe(2);
+  });
+});
