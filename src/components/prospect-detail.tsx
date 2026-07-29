@@ -1,9 +1,11 @@
 'use client';
 
+import { useMemo } from 'react';
+
 import { useWorkspace, type ScoredParcel } from '@/components/workspace';
 import { useToast } from '@/components/toast';
-import { Button, Ghost, GhostLink, ScoreBar } from '@/components/ui';
-import { IconCheck, IconFile, IconMail, IconMap, IconPhone } from '@/components/icons';
+import { Button, Callout, Ghost, GhostLink, ScoreBar } from '@/components/ui';
+import { IconCheck, IconFile, IconMail, IconMap, IconPhone, IconRoute } from '@/components/icons';
 import {
   MAX_TOUCHES,
   STATUSES,
@@ -11,8 +13,13 @@ import {
   callScript,
   formatMoney,
   googleMapsSearchUrl,
+  nearbyTargets,
+  portfolioChain,
   touchEmail,
 } from '@/lib/scoring';
+
+/** How far the crew will realistically detour while already on site. */
+const NEARBY_RADIUS_MILES = 2;
 
 /** Confidence is only useful if a low one actually looks different. */
 const CONFIDENCE_TONE: Record<string, string> = {
@@ -34,6 +41,39 @@ export function ProspectDetail({ x }: { x: ScoredParcel }) {
   const ws = useWorkspace();
   const toast = useToast();
   const s = ws.stateOf(x.id);
+  // Only computed once the deal is actually won — that's the moment the rest of
+  // the landlord's portfolio is worth putting in front of the operator.
+  const chain = useMemo(
+    () =>
+      s.status === 'Won'
+        ? portfolioChain(
+            x.id,
+            ws.scored.map((p) => ({
+              id: p.id,
+              address: p.row.address,
+              ownerName: p.row.owner_name,
+              annualValue: p.est.annualQuarterly,
+            })),
+          )
+        : null,
+    [s.status, x.id, ws.scored],
+  );
+  // Worth knocking on while the crew is already at this address.
+  const nearby = useMemo(
+    () =>
+      nearbyTargets(
+        x.id,
+        ws.scored.map((p) => ({
+          id: p.id,
+          lat: p.row.lat,
+          lon: p.row.lon,
+          annualValue: p.est.annualQuarterly,
+          address: p.row.address,
+        })),
+        NEARBY_RADIUS_MILES,
+      ).slice(0, 4),
+    [x.id, ws.scored],
+  );
   const email = touchEmail(x.input, x.est, Math.min(s.touch, MAX_TOUCHES - 1), ws.settings);
   const touchIdx = Math.min(s.touch, MAX_TOUCHES - 1);
 
@@ -58,18 +98,52 @@ export function ProspectDetail({ x }: { x: ScoredParcel }) {
           </p>
         </div>
         <p className="text-[11px] font-semibold text-ink3 mb-1.5">WHY THIS SCORE</p>
-        {x.score.parts.map((p) => (
-          <div key={p.label} className="mb-1.5">
-            <div className="flex justify-between text-xs">
+        {x.score.parts.map((p) =>
+          // A zero-weight factor is one this county can't differentiate on, so
+          // its weight moved to the signals that can. Showing "0 / 0" with an
+          // empty bar reads as a broken score rather than a missing input.
+          p.max === 0 ? (
+            <div key={p.label} className="mb-1.5 flex justify-between text-xs text-ink3">
               <span>{p.label}</span>
-              <b className="tabular-nums">
-                {p.points} / {p.max}
-              </b>
+              <span className="text-[10.5px]">not published for this county</span>
             </div>
-            <ScoreBar pct={(p.points / p.max) * 100} className="my-0.5" />
-            <p className="text-[10.5px] text-ink3">{p.why}</p>
-          </div>
-        ))}
+          ) : (
+            <div key={p.label} className="mb-1.5">
+              <div className="flex justify-between text-xs">
+                <span>{p.label}</span>
+                <b className="tabular-nums">
+                  {p.points} / {p.max}
+                </b>
+              </div>
+              <ScoreBar pct={(p.points / p.max) * 100} className="my-0.5" />
+              <p className="text-[10.5px] text-ink3">{p.why}</p>
+            </div>
+          ),
+        )}
+        {nearby.length > 0 && (
+          <>
+            <p className="text-[11px] font-semibold text-ink3 mt-2.5 mb-1">
+              WHILE YOU&rsquo;RE THERE — WITHIN {NEARBY_RADIUS_MILES} MILES
+            </p>
+            {nearby.map((n) => (
+              <div key={n.id} className="flex justify-between text-[11.5px] text-ink2">
+                <span className="truncate pr-2">{n.address}</span>
+                <span className="tabular-nums whitespace-nowrap">
+                  {formatMoney(n.annualValue)}/yr · {n.miles.toFixed(1)} mi
+                </span>
+              </div>
+            ))}
+            <Ghost
+              onClick={() => {
+                ws.addRouteStops([x.id, ...nearby.map((n) => n.id)]);
+                toast(`${nearby.length + 1} stops added to route`);
+              }}
+            >
+              <IconRoute />
+              Route this cluster
+            </Ghost>
+          </>
+        )}
         <p className="text-[11px] font-semibold text-ink3 mt-2.5 mb-1">TEAM NOTES</p>
         <textarea
           className="w-full min-h-[52px] border border-line2 rounded-md p-2 text-xs outline-none focus:border-accent"
@@ -156,6 +230,32 @@ export function ProspectDetail({ x }: { x: ScoredParcel }) {
             ))}
           </select>
         </label>
+        {s.status === 'Won' && chain && (
+          <Callout tone="ok">
+            <b>
+              {chain.ownerName} owns {chain.siblings.length} more{' '}
+              {chain.siblings.length === 1 ? 'property' : 'properties'} here —{' '}
+              {formatMoney(chain.remainingAnnual)}/yr still open.
+            </b>
+            <div className="mt-1 text-[11.5px]">
+              {chain.siblings.slice(0, 4).map((sib) => (
+                <div key={sib.id}>
+                  · {sib.address} ({formatMoney(sib.annualValue)}/yr)
+                </div>
+              ))}
+              {chain.siblings.length > 4 && <div>· +{chain.siblings.length - 4} more</div>}
+            </div>
+            <Ghost
+              onClick={() => {
+                ws.addRouteStops(chain.siblings.map((sib) => sib.id));
+                toast(`${chain.siblings.length} added to route`);
+              }}
+            >
+              <IconRoute />
+              Route the rest
+            </Ghost>
+          </Callout>
+        )}
         <div className="bg-soft rounded-lg p-3 text-xs whitespace-pre-wrap leading-relaxed mt-2 max-h-40 overflow-y-auto">
           <b>{email.subject}</b>
           {'\n\n'}

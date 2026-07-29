@@ -111,6 +111,17 @@ function CandidatesView() {
 
       <p className="text-[11.5px] text-ink3 mb-2">
         {formatNum(view.length)} matches{view.length > SHOW ? ` · showing top ${SHOW}` : ''}
+        {ws.deadSignals.length > 0 && (
+          <>
+            {' · '}
+            <span
+              className="text-warn"
+              title={`This county publishes nothing that separates buildings on ${ws.deadSignals.join(', ').toLowerCase()}, so the remaining signals carry the full score.`}
+            >
+              graded on {5 - ws.deadSignals.length} of 5 signals
+            </span>
+          </>
+        )}
       </p>
 
       {view.slice(0, SHOW).map((x: ScoredParcel) => {

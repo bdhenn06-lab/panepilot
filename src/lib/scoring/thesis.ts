@@ -1,6 +1,6 @@
 import { parseNum, classifyUse } from './classify';
 import { ownerKey } from './owner';
-import { isLocalMailing } from './score';
+import { localityStrength } from './score';
 import type { Estimate, ParcelInput, ScoringSettings, TerritoryContext } from './types';
 
 /**
@@ -102,8 +102,11 @@ function headlineReason(
     }
   }
 
+  // Only claim "local" for a same-metro match. A state-only hit is too weak to
+  // headline — telling someone in Cincinnati that a Cleveland owner is local
+  // burns trust the first time they check.
   const mailing = String(parcel.ownerMailing ?? '');
-  if (mailing && isLocalMailing(mailing, s)) {
+  if (mailing && localityStrength(mailing, s) >= 1) {
     const where = s.localCity || s.localState;
     return where
       ? `Locally owned — the decision-maker is in ${where}`

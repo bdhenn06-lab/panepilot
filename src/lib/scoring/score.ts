@@ -14,6 +14,57 @@ export function gradeOf(total: number): Grade {
   return total >= 70 ? 'A' : total >= 55 ? 'B' : total >= 40 ? 'C' : 'D';
 }
 
+/** Score-part label -> the settings weight that funds it. */
+const WEIGHT_KEYS = {
+  'Contract value': 'weightValue',
+  'Building fit': 'weightFit',
+  'Buyer signal': 'weightBuyer',
+  Portfolio: 'weightPortfolio',
+  'Route density': 'weightDensity',
+} as const satisfies Record<string, keyof ScoringSettings>;
+
+/**
+ * Factors that landed on the same number for every parcel in the territory.
+ *
+ * Such a factor cannot rank anything — it adds a constant to everyone — yet it
+ * still holds its share of the 100 points. Counties that publish no owner or
+ * building size leave most of the score frozen, which is why every building in
+ * Hamilton graded C regardless of how good a prospect it actually was.
+ */
+export function deadFactors(breakdowns: ScoreBreakdown[]): string[] {
+  if (breakdowns.length < 2) return [];
+  const labels = Object.keys(WEIGHT_KEYS);
+  return labels.filter((label) => {
+    const points = breakdowns.map((b) => b.parts.find((p) => p.label === label)?.points ?? 0);
+    return points.every((v) => v === points[0]);
+  });
+}
+
+/**
+ * Rebalance the weights onto the factors that still differentiate, keeping
+ * their relative proportions and the 100-point total. Ranking order is
+ * unchanged — a constant factor cannot affect order — but the surviving spread
+ * now uses the full range instead of being squashed into one grade band.
+ *
+ * Callers should surface how many factors survived: an A earned on two live
+ * signals is not the same claim as an A earned on five.
+ */
+export function renormalizeSettings(s: ScoringSettings, dead: string[]): ScoringSettings {
+  const live = Object.keys(WEIGHT_KEYS).filter((l) => !dead.includes(l));
+  if (!dead.length || !live.length) return s;
+
+  const keyOf = (label: string) => WEIGHT_KEYS[label as keyof typeof WEIGHT_KEYS];
+  const liveTotal = live.reduce((sum, l) => sum + (s[keyOf(l)] as number), 0);
+  if (liveTotal <= 0) return s;
+
+  const out = { ...s };
+  for (const label of dead) (out[keyOf(label)] as number) = 0;
+  for (const label of live) {
+    (out[keyOf(label)] as number) = ((s[keyOf(label)] as number) / liveTotal) * 100;
+  }
+  return out;
+}
+
 /**
  * Median of a pre-sorted list. Averaging the middle pair on even lengths
  * matters: taking the upper element biases the threshold up, so fewer
@@ -50,14 +101,40 @@ export function buildContext(parcels: ParcelInput[]): TerritoryContext {
   };
 }
 
-/** Does the owner's mailing address look local to the service territory? */
+/** Same metro as the operator — the signal actually worth acting on. */
+const LOCAL_STRONG = 1;
+/** Same state only. Real but weak: Cleveland is 250 miles from Cincinnati. */
+const LOCAL_WEAK = 0.4;
+
+/**
+ * How local the owner's mailing address is, 0 to 1.
+ *
+ * These used to be OR'd into a single boolean, so with `localState = OH` every
+ * owner in Ohio earned the full local-decision-maker bonus — a signal that
+ * fires for the entire territory carries no information and just inflates
+ * everyone equally. City and ZIP prefix indicate the same metro and stay
+ * strong; state alone is now weighted down rather than treated as equivalent.
+ */
+export function localityStrength(mailing: string, s: ScoringSettings): number {
+  if (!mailing) return 0;
+  if (s.localCity && new RegExp(escapeRe(s.localCity), 'i').test(mailing)) return LOCAL_STRONG;
+  if (
+    s.localZipPrefix &&
+    new RegExp(
+      `\\b${escapeRe(s.localZipPrefix)}\\d{${Math.max(0, 5 - s.localZipPrefix.length)}}\\b`,
+    ).test(mailing)
+  ) {
+    return LOCAL_STRONG;
+  }
+  if (s.localState && new RegExp(`\\b${escapeRe(s.localState)}\\b`, 'i').test(mailing)) {
+    return LOCAL_WEAK;
+  }
+  return 0;
+}
+
+/** Is the owner local at all? Kept for callers that just need a yes/no. */
 export function isLocalMailing(mailing: string, s: ScoringSettings): boolean {
-  if (!mailing) return false;
-  const checks: RegExp[] = [];
-  if (s.localState) checks.push(new RegExp(`\\b${escapeRe(s.localState)}\\b`, 'i'));
-  if (s.localCity) checks.push(new RegExp(escapeRe(s.localCity), 'i'));
-  if (s.localZipPrefix) checks.push(new RegExp(`\\b${escapeRe(s.localZipPrefix)}\\d{${Math.max(0, 5 - s.localZipPrefix.length)}}\\b`));
-  return checks.some((re) => re.test(mailing));
+  return localityStrength(mailing, s) > 0;
 }
 
 function escapeRe(x: string): string {
@@ -78,7 +155,14 @@ export function paneScore(
   const parts: ScoreBreakdown['parts'] = [];
   let total = 0;
   const add = (label: string, points: number, max: number, why: string) => {
-    parts.push({ label, points: Math.round(points * 10) / 10, max, why });
+    // Renormalized weights are rarely whole numbers, and "32.7 / 36.36363636"
+    // reads as a bug rather than a score.
+    parts.push({
+      label,
+      points: Math.round(points * 10) / 10,
+      max: Math.round(max * 10) / 10,
+      why,
+    });
     total += points;
   };
 
@@ -130,9 +214,13 @@ export function paneScore(
     why.push('owner on file');
   }
   const mailing = String(parcel.ownerMailing ?? '');
-  if (mailing && isLocalMailing(mailing, s)) {
+  const local = mailing ? localityStrength(mailing, s) : 0;
+  if (local >= LOCAL_STRONG) {
     buyer += 0.3;
     why.push('local decision-maker');
+  } else if (local > 0) {
+    buyer += 0.3 * local;
+    why.push('owner in-state, outside the metro');
   } else if (mailing) {
     why.push('out-of-area owner');
   }

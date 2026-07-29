@@ -76,12 +76,16 @@ describe('classifyUse', () => {
 });
 
 describe('ownerKey', () => {
-  it('collapses LLC name variations', () => {
-    expect(ownerKey('MERIDIAN PROPERTY GROUP LLC')).toBe('meridian');
-    expect(ownerKey('Meridian Property Group')).toBe('meridian');
-    expect(ownerKey('MERIDIAN HOLDINGS, LLC')).toBe('meridian');
-    expect(ownerKey('The Kessler Family Trust')).toBe('kessler family');
-    expect(ownerKey('KESSLER FAMILY TRUSTEE')).toBe('kessler family');
+  it('collapses legal-form variations of one name', () => {
+    // Only boilerplate is dropped. This previously stripped "property",
+    // "group" and "holdings" too, which merged MERIDIAN PROPERTY GROUP with
+    // MERIDIAN HOLDINGS — two names that may well be unrelated owners.
+    expect(ownerKey('MERIDIAN PROPERTY GROUP LLC')).toBe('meridian property group');
+    expect(ownerKey('Meridian Property Group')).toBe('meridian property group');
+    expect(ownerKey('MERIDIAN HOLDINGS, LLC')).toBe('meridian holdings');
+    // Trust and trustee are the same entity written two ways, so they merge.
+    expect(ownerKey('The Kessler Family Trust')).toBe('kessler family trust');
+    expect(ownerKey('KESSLER FAMILY TRUSTEE')).toBe('kessler family trust');
   });
   it('empty and entity-only names produce empty keys', () => {
     expect(ownerKey('')).toBe('');

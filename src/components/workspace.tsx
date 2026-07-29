@@ -27,9 +27,11 @@ import {
   EMPTY_STATE,
   advanceTouch,
   buildContext,
+  deadFactors,
   estimate,
   jobThesis,
   paneScore,
+  renormalizeSettings,
   todayISO,
   withDefaults,
   type Estimate,
@@ -64,6 +66,8 @@ interface WorkspaceValue {
   scored: ScoredParcel[];
   byId: Map<number, ScoredParcel>;
   states: Record<number, ProspectState>;
+  /** Score factors this county's data can't differentiate on. */
+  deadSignals: string[];
   stateOf: (parcelId: number) => ProspectState;
   /** Route stops as parcel ids, persisted per org. */
   route: number[];
@@ -228,22 +232,28 @@ export function WorkspaceProvider({
   }, [supabase, orgId, userId]);
 
   // ---------- scoring (memoized over parcels + settings) ----------
-  const { scored, byId } = useMemo(() => {
+  const { scored, byId, deadSignals } = useMemo(() => {
     const inputs = parcels.map(parcelToInput);
     const ctx = buildContext(inputs);
-    const list: ScoredParcel[] = parcels.map((row, i) => {
-      const est = estimate(inputs[i], settings);
-      return {
-        id: row.id,
-        row,
-        input: inputs[i],
-        est,
-        score: paneScore(inputs[i], est, ctx, settings),
-        thesis: jobThesis(inputs[i], est, ctx, settings),
-      };
-    });
+    const ests = inputs.map((input) => estimate(input, settings));
+
+    // First pass finds the factors this county's data can't differentiate on;
+    // the weights then move onto the ones that can, so a sparse territory
+    // doesn't collapse into a single grade band. Order is unaffected either
+    // way — a constant factor adds the same points to every parcel.
+    const dead = deadFactors(inputs.map((input, i) => paneScore(input, ests[i], ctx, settings)));
+    const effective = renormalizeSettings(settings, dead);
+
+    const list: ScoredParcel[] = parcels.map((row, i) => ({
+      id: row.id,
+      row,
+      input: inputs[i],
+      est: ests[i],
+      score: paneScore(inputs[i], ests[i], ctx, effective),
+      thesis: jobThesis(inputs[i], ests[i], ctx, effective),
+    }));
     list.sort((a, b) => b.score.total - a.score.total || b.est.annualQuarterly - a.est.annualQuarterly);
-    return { scored: list, byId: new Map(list.map((x) => [x.id, x])) };
+    return { scored: list, byId: new Map(list.map((x) => [x.id, x])), deadSignals: dead };
   }, [parcels, settings]);
 
   const dueCount = useMemo(() => {
@@ -398,6 +408,7 @@ export function WorkspaceProvider({
     scored,
     byId,
     states,
+    deadSignals,
     stateOf,
     route,
     dueCount,

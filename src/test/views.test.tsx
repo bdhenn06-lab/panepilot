@@ -39,6 +39,8 @@ function workspaceValue(overrides: Record<string, unknown> = {}) {
     parcels: rows,
     scored,
     byId: new Map(scored.map((x: ScoredParcel) => [x.id, x])),
+    // Fixture territory has full coverage, so every signal differentiates.
+    deadSignals: [] as string[],
     states,
     stateOf: (id: number) => states[id] ?? EMPTY_STATE,
     route: [] as number[],

@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest';
 import { estimate } from '../estimate';
-import { buildContext, gradeOf, isLocalMailing, paneScore } from '../score';
+import { buildContext, gradeOf, isLocalMailing, localityStrength, paneScore } from '../score';
 import { DEFAULT_SETTINGS } from '../settings';
 import type { ParcelInput, ScoringSettings } from '../types';
 
@@ -100,15 +100,18 @@ describe('paneScore', () => {
 
   it('gives the portfolio bonus across LLC name variations, capped at 4+', () => {
     const mk = (i: number, owner: string) => office({ address: `${i} Elm`, ownerName: owner });
+    // Four renderings of ONE name. The fixture used to include MERIDIAN
+    // HOLDINGS as a fifth "variation", which relied on the normalizer merging
+    // genuinely different names — the over-merge this now guards against.
     const parcels = [
       mk(1, 'MERIDIAN PROPERTY GROUP LLC'),
       mk(2, 'Meridian Property Group'),
-      mk(3, 'MERIDIAN PROPERTIES LLC'),
-      mk(4, 'MERIDIAN HOLDINGS, LLC'),
+      mk(3, 'MERIDIAN PROPERTY GROUP, INC.'),
+      mk(4, 'The Meridian Property Group Co'),
       mk(5, 'SOLO OWNER LLC'),
     ];
     const ctx = buildContext(parcels);
-    expect(ctx.ownerCounts['meridian']).toBe(4);
+    expect(ctx.ownerCounts['meridian property group']).toBe(4);
     const b = paneScore(parcels[0], estimate(parcels[0], S), ctx, S);
     expect(b.parts[3].points).toBe(15); // min(1,(4-1)/3) = 1 -> full weight
     expect(b.parts[3].why).toBe('owner holds 4 parcels');
@@ -221,5 +224,44 @@ describe('scoring arithmetic defects', () => {
   it('still takes the middle element on an odd-length territory', () => {
     const mk = (mv: number): ParcelInput => ({ address: `${mv} St`, bldgSqft: 1, marketValue: mv });
     expect(buildContext([mk(1), mk(2), mk(3)]).medianValuePerSqft).toBe(2);
+  });
+});
+
+/**
+ * A "local decision-maker" signal that fires for an entire state carries no
+ * information — every owner in Ohio scored identically. Strength is tiered so
+ * same-metro beats same-state, and the buyer factor scales with it.
+ */
+describe('locality strength', () => {
+  it('treats a same-city or same-ZIP owner as a strong local match', () => {
+    expect(localityStrength('CINCINNATI, OH 45202', S)).toBe(1);
+    expect(localityStrength('PO BOX 9, 45242', S)).toBe(1);
+  });
+
+  it('treats same-state-only as weak, not full credit', () => {
+    // Cleveland is 250 miles from Cincinnati. It used to earn the same
+    // "local decision-maker" credit as a downtown owner.
+    const cleveland = localityStrength('CLEVELAND, OH 44101', S);
+    expect(cleveland).toBeGreaterThan(0);
+    expect(cleveland).toBeLessThan(1);
+  });
+
+  it('gives out-of-state owners nothing', () => {
+    expect(localityStrength('WILMINGTON, DE 19801', S)).toBe(0);
+    expect(localityStrength('', S)).toBe(0);
+  });
+
+  it('scores a same-metro owner strictly above a same-state one', () => {
+    const near: ParcelInput = { address: '1 A St', ownerName: 'X LLC', ownerMailing: 'CINCINNATI, OH 45202' };
+    const far: ParcelInput = { address: '2 B St', ownerName: 'Y LLC', ownerMailing: 'CLEVELAND, OH 44101' };
+    const ctx = buildContext([near, far]);
+    const pts = (p: ParcelInput) =>
+      paneScore(p, estimate(p, S), ctx, S).parts.find((x) => x.label === 'Buyer signal')!.points;
+    expect(pts(near)).toBeGreaterThan(pts(far));
+  });
+
+  it('still reports a boolean for anything local at all', () => {
+    expect(isLocalMailing('CLEVELAND, OH 44101', S)).toBe(true);
+    expect(isLocalMailing('WILMINGTON, DE 19801', S)).toBe(false);
   });
 });
