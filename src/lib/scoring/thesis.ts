@@ -1,4 +1,5 @@
 import { parseNum, classifyUse } from './classify';
+import { hoursCalibrationFor, type Calibration } from './feedback';
 import { ownerKey } from './owner';
 import { localityStrength } from './score';
 import type { Estimate, ParcelInput, ScoringSettings, TerritoryContext } from './types';
@@ -133,6 +134,7 @@ export function jobThesis(
   est: Estimate,
   ctx: TerritoryContext,
   s: ScoringSettings,
+  calibration?: Calibration,
 ): JobThesis {
   const priceLow = roundPrice(est.pricePerClean * (1 - PRICE_BAND));
   const priceHigh = roundPrice(est.pricePerClean * (1 + PRICE_BAND));
@@ -143,7 +145,8 @@ export function jobThesis(
     s.serviceMode === 'residential'
       ? est.windows / WINDOWS_PER_PERSON_HOUR
       : est.glassSqft / GLASS_SQFT_PER_PERSON_HOUR;
-  const crewHours = personHours / CREW_SIZE;
+  const hoursCal = calibration ? hoursCalibrationFor(parcel.landUse, calibration) : 1;
+  const crewHours = (personHours / CREW_SIZE) * hoursCal;
   const crewHoursLow = roundHours(crewHours * (1 - TIME_BAND));
   const crewHoursHigh = roundHours(Math.max(crewHours * (1 + TIME_BAND), crewHoursLow + 0.5));
 

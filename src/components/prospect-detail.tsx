@@ -1,6 +1,6 @@
 'use client';
 
-import { useMemo } from 'react';
+import { useMemo, useState } from 'react';
 
 import { useWorkspace, type ScoredParcel } from '@/components/workspace';
 import { useToast } from '@/components/toast';
@@ -76,6 +76,14 @@ export function ProspectDetail({ x }: { x: ScoredParcel }) {
   );
   const email = touchEmail(x.input, x.est, Math.min(s.touch, MAX_TOUCHES - 1), ws.settings);
   const touchIdx = Math.min(s.touch, MAX_TOUCHES - 1);
+
+  // What was actually charged and how long it actually took — the two numbers
+  // that let future estimates for this building type stop repeating a bias.
+  // Local, not persisted: the form only exists while this Won card is open.
+  const [actualPrice, setActualPrice] = useState<string>(() => String(x.est.pricePerClean));
+  const [actualHours, setActualHours] = useState<string>(() => String(x.thesis.crewHoursLow));
+  const [outcomeLogged, setOutcomeLogged] = useState(false);
+  const [savingOutcome, setSavingOutcome] = useState(false);
 
   return (
     <div className="grid sm:grid-cols-2 gap-3.5">
@@ -256,6 +264,70 @@ export function ProspectDetail({ x }: { x: ScoredParcel }) {
             </Ghost>
           </Callout>
         )}
+        {s.status === 'Won' &&
+          (outcomeLogged ? (
+            <p className="text-[11.5px] text-good mt-2">
+              Outcome logged — future estimates for this building type will use it.
+            </p>
+          ) : (
+            <div className="rounded-lg border border-line2 p-2.5 mt-2">
+              <p className="text-[11px] font-semibold text-ink3 mb-1.5">
+                WHAT DID THIS ACTUALLY TAKE?
+              </p>
+              <p className="text-[10.5px] text-ink3 mb-1.5">
+                Optional — every close you log corrects future prices and crew
+                estimates for this building type.
+              </p>
+              <div className="flex gap-2 items-end flex-wrap">
+                <label className="text-[11px] text-ink2">
+                  Actual price
+                  <input
+                    type="number"
+                    min="0"
+                    className="block w-24 h-7 border border-line2 rounded-md px-1.5 mt-0.5 text-xs"
+                    value={actualPrice}
+                    onChange={(e) => setActualPrice(e.target.value)}
+                  />
+                </label>
+                <label className="text-[11px] text-ink2">
+                  Actual hours
+                  <input
+                    type="number"
+                    min="0"
+                    step="0.5"
+                    className="block w-20 h-7 border border-line2 rounded-md px-1.5 mt-0.5 text-xs"
+                    value={actualHours}
+                    onChange={(e) => setActualHours(e.target.value)}
+                  />
+                </label>
+                <Button
+                  className="!h-7 !text-xs"
+                  disabled={savingOutcome || !actualPrice}
+                  onClick={() => {
+                    const price = parseFloat(actualPrice);
+                    if (!Number.isFinite(price) || price <= 0) {
+                      toast('Enter a real price first');
+                      return;
+                    }
+                    const hours = parseFloat(actualHours);
+                    setSavingOutcome(true);
+                    void ws
+                      .recordOutcome(x.id, {
+                        actualPrice: price,
+                        actualHours: Number.isFinite(hours) && hours > 0 ? hours : null,
+                      })
+                      .then(() => {
+                        setOutcomeLogged(true);
+                        toast('Outcome logged');
+                      })
+                      .finally(() => setSavingOutcome(false));
+                  }}
+                >
+                  Save
+                </Button>
+              </div>
+            </div>
+          ))}
         <div className="bg-soft rounded-lg p-3 text-xs whitespace-pre-wrap leading-relaxed mt-2 max-h-40 overflow-y-auto">
           <b>{email.subject}</b>
           {'\n\n'}

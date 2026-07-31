@@ -1,4 +1,5 @@
 import { parseNum } from './classify';
+import { priceCalibrationFor, type Calibration } from './feedback';
 import type { Estimate, ParcelInput, ScoringSettings } from './types';
 
 interface Assumption {
@@ -56,10 +57,21 @@ function assumeResidential(rawStories: number, rawSqft: number): Assumption {
  * first (ladder/access difficulty). No glass-area or lift-fee concept.
  *
  * Missing stories/sq ft are assumed from each other in both models.
+ *
+ * `calibration` is optional and comes from realized outcomes on past jobs
+ * (see `feedback.ts`) — it nudges the raw formula price toward what this org
+ * actually charges for this building type, once enough closes exist to trust
+ * it. With no calibration, or none yet for this use class, behaves exactly as
+ * before.
  */
-export function estimate(parcel: ParcelInput, s: ScoringSettings): Estimate {
+export function estimate(
+  parcel: ParcelInput,
+  s: ScoringSettings,
+  calibration?: Calibration,
+): Estimate {
   const rawStories = parseNum(parcel.stories);
   const rawSqft = parseNum(parcel.bldgSqft);
+  const priceCal = calibration ? priceCalibrationFor(parcel.landUse, calibration) : 1;
 
   let stories: number;
   let bldgSqft: number;
@@ -76,7 +88,7 @@ export function estimate(parcel: ParcelInput, s: ScoringSettings): Estimate {
     const upperStorySurcharge = 1 + Math.max(0, stories - 1) * (s.resUpperStoryPct / 100);
     pricePerClean = Math.max(
       s.minJob,
-      Math.round((windows * s.resPricePerWindow * upperStorySurcharge) / 5) * 5,
+      Math.round((windows * s.resPricePerWindow * upperStorySurcharge * priceCal) / 5) * 5,
     );
   } else {
     ({ stories, bldgSqft, assumed, storiesAssumed } = assumeCommercial(rawStories, rawSqft));
@@ -87,7 +99,7 @@ export function estimate(parcel: ParcelInput, s: ScoringSettings): Estimate {
     windows = Math.max(1, Math.round(glassSqft / s.windowSize));
     pricePerClean = Math.max(
       s.minJob,
-      Math.round((glassSqft * s.ratePerSqft + stories * s.liftFeePerFloor) / 5) * 5,
+      Math.round(((glassSqft * s.ratePerSqft + stories * s.liftFeePerFloor) * priceCal) / 5) * 5,
     );
   }
 

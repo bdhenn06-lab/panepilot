@@ -93,6 +93,20 @@ export interface ProspectStateRow {
   updated_at: string;
 }
 
+export interface JobOutcomeRow {
+  id: string;
+  org_id: string;
+  parcel_id: number | null;
+  land_use: string | null;
+  service_mode: 'commercial' | 'residential';
+  estimated_price: number;
+  actual_price: number;
+  estimated_hours: number | null;
+  actual_hours: number | null;
+  closed_at: string;
+  created_by: string | null;
+}
+
 export interface RouteRow {
   id: string;
   org_id: string;

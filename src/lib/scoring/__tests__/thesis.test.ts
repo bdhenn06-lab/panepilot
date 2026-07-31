@@ -131,3 +131,27 @@ describe('jobThesis confidence', () => {
     }
   });
 });
+
+describe('jobThesis applies hours calibration', () => {
+  it('widens the crew estimate toward what these jobs actually took', () => {
+    const p = office();
+    const base = thesisFor([p]);
+    const ctx = buildContext([p]);
+    const est = estimate(p, S);
+    const calibrated = jobThesis(p, est, ctx, S, {
+      priceMultiplier: {},
+      hoursMultiplier: { office: 1.5 },
+    });
+    expect(calibrated.crewHoursLow).toBeGreaterThan(base.crewHoursLow);
+  });
+
+  it('leaves hours unchanged with no calibration for this use class', () => {
+    const p = office();
+    const ctx = buildContext([p]);
+    const est = estimate(p, S);
+    const base = jobThesis(p, est, ctx, S);
+    const noop = jobThesis(p, est, ctx, S, { priceMultiplier: {}, hoursMultiplier: {} });
+    expect(noop.crewHoursLow).toBe(base.crewHoursLow);
+    expect(noop.crewHoursHigh).toBe(base.crewHoursHigh);
+  });
+});

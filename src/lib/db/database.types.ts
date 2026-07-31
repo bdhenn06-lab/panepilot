@@ -1,5 +1,5 @@
 // Generated from the live schema via the Supabase Management API. Do not edit by
-// hand; regenerate after schema changes. Reflects migrations 0001-0004.
+// hand; regenerate after schema changes. Reflects migrations 0001-0007.
 
 export type Json =
   | string
@@ -17,6 +17,63 @@ export type Database = {
   }
   public: {
     Tables: {
+      job_outcomes: {
+        Row: {
+          actual_hours: number | null
+          actual_price: number
+          closed_at: string
+          created_by: string | null
+          estimated_hours: number | null
+          estimated_price: number
+          id: string
+          land_use: string | null
+          org_id: string
+          parcel_id: number | null
+          service_mode: string
+        }
+        Insert: {
+          actual_hours?: number | null
+          actual_price: number
+          closed_at?: string
+          created_by?: string | null
+          estimated_hours?: number | null
+          estimated_price: number
+          id?: string
+          land_use?: string | null
+          org_id: string
+          parcel_id?: number | null
+          service_mode: string
+        }
+        Update: {
+          actual_hours?: number | null
+          actual_price?: number
+          closed_at?: string
+          created_by?: string | null
+          estimated_hours?: number | null
+          estimated_price?: number
+          id?: string
+          land_use?: string | null
+          org_id?: string
+          parcel_id?: number | null
+          service_mode?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "job_outcomes_org_id_fkey"
+            columns: ["org_id"]
+            isOneToOne: false
+            referencedRelation: "orgs"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "job_outcomes_parcel_id_fkey"
+            columns: ["parcel_id"]
+            isOneToOne: false
+            referencedRelation: "parcels"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       org_invites: {
         Row: {
           accepted_at: string | null

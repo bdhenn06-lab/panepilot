@@ -107,3 +107,32 @@ describe('estimate tracks which inputs were assumed', () => {
     expect(estimate({ address: 'x', bldgSqft: 2400 }, R).storiesAssumed).toBe(true);
   });
 });
+
+/**
+ * Calibration is optional and off by default, so an org with no closed jobs
+ * yet sees the estimator behave exactly as before.
+ */
+describe('estimate applies price calibration', () => {
+  const office = { address: 'x', landUse: 'Office', bldgSqft: 20000, stories: 2 };
+
+  it('leaves the estimate unchanged with no calibration argument', () => {
+    const plain = estimate(office, S);
+    const empty = estimate(office, S, { priceMultiplier: {}, hoursMultiplier: {} });
+    expect(empty.pricePerClean).toBe(plain.pricePerClean);
+  });
+
+  it('nudges price toward what offices have actually closed for here', () => {
+    const base = estimate(office, S);
+    const calibrated = estimate(office, S, {
+      priceMultiplier: { office: 1.2 },
+      hoursMultiplier: {},
+    });
+    expect(calibrated.pricePerClean).toBeCloseTo(base.pricePerClean * 1.2, -1);
+  });
+
+  it('still respects the minimum job price after calibration', () => {
+    const tiny = { address: 'x', landUse: 'Office', bldgSqft: 100, stories: 1 };
+    const calibrated = estimate(tiny, S, { priceMultiplier: { office: 0.5 }, hoursMultiplier: {} });
+    expect(calibrated.pricePerClean).toBeGreaterThanOrEqual(S.minJob);
+  });
+});

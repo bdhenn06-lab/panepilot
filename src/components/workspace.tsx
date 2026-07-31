@@ -21,12 +21,20 @@ import {
 } from 'react';
 import { createClient } from '@/lib/supabase/client';
 import { parcelToInput, settingsFromRow, settingsToRow } from '@/lib/db/mappers';
-import type { OrgRow, OrgSettingsRow, ParcelRow, ProspectStateRow, RouteRow } from '@/lib/db/types';
+import type {
+  JobOutcomeRow,
+  OrgRow,
+  OrgSettingsRow,
+  ParcelRow,
+  ProspectStateRow,
+  RouteRow,
+} from '@/lib/db/types';
 import {
   DEFAULT_SETTINGS,
   EMPTY_STATE,
   advanceTouch,
   buildContext,
+  computeCalibration,
   deadFactors,
   estimate,
   jobThesis,
@@ -34,6 +42,7 @@ import {
   renormalizeSettings,
   todayISO,
   withDefaults,
+  type Calibration,
   type Estimate,
   type JobThesis,
   type ParcelInput,
@@ -68,6 +77,8 @@ interface WorkspaceValue {
   states: Record<number, ProspectState>;
   /** Score factors this county's data can't differentiate on. */
   deadSignals: string[];
+  /** How many closed jobs are feeding the price/hours calibration. */
+  outcomeCount: number;
   stateOf: (parcelId: number) => ProspectState;
   /** Route stops as parcel ids, persisted per org. */
   route: number[];
@@ -76,6 +87,11 @@ interface WorkspaceValue {
   saveSettings: (s: ScoringSettings) => void;
   setState: (parcelId: number, patch: Partial<ProspectState>) => void;
   markSent: (parcelId: number) => { touch: number; due: string } | null;
+  /** Log what a job actually closed for, once won — feeds future estimates. */
+  recordOutcome: (
+    parcelId: number,
+    outcome: { actualPrice: number; actualHours: number | null },
+  ) => Promise<void>;
   toggleRouteStop: (parcelId: number) => void;
   addRouteStops: (parcelIds: number[]) => void;
   clearRoute: () => void;
@@ -113,6 +129,7 @@ export function WorkspaceProvider({
   const [settings, setSettings] = useState<ScoringSettings>(DEFAULT_SETTINGS);
   const [parcels, setParcels] = useState<ParcelRow[]>([]);
   const [states, setStates] = useState<Record<number, ProspectState>>({});
+  const [outcomes, setOutcomes] = useState<JobOutcomeRow[]>([]);
   const [route, setRoute] = useState<number[]>([]);
   const routeIdRef = useRef<string | null>(null);
   const timers = useRef<Record<string, ReturnType<typeof setTimeout>>>({});
@@ -170,6 +187,13 @@ export function WorkspaceProvider({
         if (!data || data.length < PAGE) break;
       }
       setStates(st);
+
+      const { data: outcomeRows, error: outcomeErr } = await supabase
+        .from('job_outcomes')
+        .select('*')
+        .eq('org_id', orgId);
+      if (outcomeErr) throw outcomeErr;
+      setOutcomes((outcomeRows ?? []) as JobOutcomeRow[]);
     } catch (e) {
       setLoadError(e instanceof Error ? e.message : String(e));
     } finally {
@@ -231,11 +255,29 @@ export function WorkspaceProvider({
     };
   }, [supabase, orgId, userId]);
 
+  // What closed jobs say about this org's actual prices and hours, by
+  // building type. Empty until enough jobs are logged for any use class —
+  // see MIN_OUTCOMES_FOR_CALIBRATION — so a fresh org scores exactly as
+  // before.
+  const calibration: Calibration = useMemo(
+    () =>
+      computeCalibration(
+        outcomes.map((o) => ({
+          landUse: o.land_use,
+          estimatedPrice: o.estimated_price,
+          actualPrice: o.actual_price,
+          estimatedHours: o.estimated_hours,
+          actualHours: o.actual_hours,
+        })),
+      ),
+    [outcomes],
+  );
+
   // ---------- scoring (memoized over parcels + settings) ----------
   const { scored, byId, deadSignals } = useMemo(() => {
     const inputs = parcels.map(parcelToInput);
     const ctx = buildContext(inputs);
-    const ests = inputs.map((input) => estimate(input, settings));
+    const ests = inputs.map((input) => estimate(input, settings, calibration));
 
     // First pass finds the factors this county's data can't differentiate on;
     // the weights then move onto the ones that can, so a sparse territory
@@ -250,11 +292,11 @@ export function WorkspaceProvider({
       input: inputs[i],
       est: ests[i],
       score: paneScore(inputs[i], ests[i], ctx, effective),
-      thesis: jobThesis(inputs[i], ests[i], ctx, effective),
+      thesis: jobThesis(inputs[i], ests[i], ctx, effective, calibration),
     }));
     list.sort((a, b) => b.score.total - a.score.total || b.est.annualQuarterly - a.est.annualQuarterly);
     return { scored: list, byId: new Map(list.map((x) => [x.id, x])), deadSignals: dead };
-  }, [parcels, settings]);
+  }, [parcels, settings, calibration]);
 
   const dueCount = useMemo(() => {
     const t = todayISO();
@@ -319,6 +361,33 @@ export function WorkspaceProvider({
       return { touch: next.touch, due: next.due };
     },
     [states, pushState],
+  );
+
+  const recordOutcome = useCallback(
+    async (parcelId: number, outcome: { actualPrice: number; actualHours: number | null }) => {
+      const x = byId.get(parcelId);
+      if (!x) return;
+      const { error } = await supabase.from('job_outcomes').insert({
+        org_id: orgId,
+        parcel_id: parcelId,
+        land_use: x.row.land_use,
+        service_mode: settings.serviceMode,
+        estimated_price: x.est.pricePerClean,
+        actual_price: outcome.actualPrice,
+        estimated_hours: x.thesis.crewHoursLow,
+        actual_hours: outcome.actualHours,
+        created_by: userId,
+      });
+      if (error) {
+        setLoadError(`Sync error: ${error.message}`);
+        return;
+      }
+      // Refetch rather than append locally — the calibration math is meant to
+      // run over the server's copy, and outcomes are rare writes.
+      const { data } = await supabase.from('job_outcomes').select('*').eq('org_id', orgId);
+      setOutcomes((data ?? []) as JobOutcomeRow[]);
+    },
+    [supabase, orgId, userId, settings.serviceMode, byId],
   );
 
   const saveSettings = useCallback(
@@ -409,6 +478,7 @@ export function WorkspaceProvider({
     byId,
     states,
     deadSignals,
+    outcomeCount: outcomes.length,
     stateOf,
     route,
     dueCount,
@@ -416,6 +486,7 @@ export function WorkspaceProvider({
     saveSettings,
     setState,
     markSent,
+    recordOutcome,
     toggleRouteStop,
     addRouteStops,
     clearRoute,
