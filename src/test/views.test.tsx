@@ -132,7 +132,13 @@ describe('Candidates', () => {
     const gradeSelect = screen.getAllByRole('combobox')[0];
     fireEvent.change(gradeSelect, { target: { value: 'D' } });
     const dCount = scored.filter((x) => x.score.grade === 'D').length;
-    expect(screen.getByText(new RegExp(`^${dCount} matches`))).toBeDefined();
+    // The count sits in its own element so it can be set in mono, which splits
+    // the text node — match on the whole paragraph rather than a single node.
+    expect(
+      screen.getByText(
+        (_, el) => el?.tagName === 'P' && (el.textContent ?? '').startsWith(`${dCount} matches`),
+      ),
+    ).toBeDefined();
   });
 
   it('mark sent advances the sequence via the workspace action', () => {

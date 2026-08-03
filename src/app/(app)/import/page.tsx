@@ -6,7 +6,7 @@ import { useRouter } from 'next/navigation';
 import { createClient } from '@/lib/supabase/client';
 import { useWorkspace } from '@/components/workspace';
 import { useToast } from '@/components/toast';
-import { Button, Callout, Card, Ghost } from '@/components/ui';
+import { Button, Callout, Card, Ghost, PageHead } from '@/components/ui';
 import { IconTrash, IconUpload } from '@/components/icons';
 import { Loading } from '@/components/loading';
 import { CountyPicker } from '@/components/county-picker';
@@ -310,10 +310,15 @@ export default function ImportPage() {
   const isAdmin = ws.role !== 'member';
 
   return (
-    <div>
-      <p className="text-base font-semibold mb-1">
-        {hasExisting ? 'Team data' : 'Load county parcel data (one time, for the whole team)'}
-      </p>
+    <div className="max-w-[900px]">
+      <PageHead
+        title={hasExisting ? 'Team data' : 'Load county parcel data'}
+        sub={
+          hasExisting
+            ? undefined
+            : 'One time, for the whole team — every teammate sees the same scored territory.'
+        }
+      />
 
       {hasExisting && !file && (
         <>

@@ -4,7 +4,7 @@ import { useEffect, useState } from 'react';
 import { createClient } from '@/lib/supabase/client';
 import { useWorkspace } from '@/components/workspace';
 import { useToast } from '@/components/toast';
-import { Button, Card, Ghost } from '@/components/ui';
+import { Button, Card, Ghost, PageHead } from '@/components/ui';
 import { IconTrash, IconUsers } from '@/components/icons';
 import { Loading } from '@/components/loading';
 import type { OrgInviteRow } from '@/lib/db/types';
@@ -323,11 +323,11 @@ export default function SettingsPage() {
   const pricingFields = isResidential ? PRICING_RESIDENTIAL : PRICING_COMMERCIAL;
 
   return (
-    <div>
-      <p className="text-base font-semibold mb-1">Team settings</p>
-      <p className="text-[12.5px] text-ink2 mb-3">
-        Shared — changes apply to everyone&apos;s scores and outreach. Scores recompute instantly.
-      </p>
+    <div className="max-w-[1100px]">
+      <PageHead
+        title="Team settings"
+        sub="Shared — changes apply to everyone's scores and outreach, and recompute instantly."
+      />
       <ServiceModeBlock mode={ws.settings.serviceMode} onSwitch={onSwitchMode} />
       <div className="grid lg:grid-cols-2 gap-x-3 items-start">
         <div>

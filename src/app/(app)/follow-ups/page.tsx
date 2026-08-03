@@ -3,7 +3,7 @@
 import { useRouter } from 'next/navigation';
 import { useWorkspace, type ScoredParcel } from '@/components/workspace';
 import { useToast } from '@/components/toast';
-import { Card, Ghost } from '@/components/ui';
+import { Card, Ghost, PageHead } from '@/components/ui';
 import { IconCheck } from '@/components/icons';
 import { Loading } from '@/components/loading';
 import { EmptyRedirect } from '@/components/empty-redirect';
@@ -100,12 +100,11 @@ export default function FollowUpsPage() {
   );
 
   return (
-    <div>
-      <p className="text-base font-semibold mb-1">Follow-up engine</p>
-      <p className="text-[12.5px] text-ink2 mb-3">
-        Shared across the team — anyone can work the queue and everyone sees it. Cadence: days 1,
-        3, 6, 10, 14. Deals die from silence, not rejection — this tab is the fix.
-      </p>
+    <div className="max-w-[1240px]">
+      <PageHead
+        title="Follow-up engine"
+        sub="Shared across the team — anyone can work the queue and everyone sees it. Cadence: days 1, 3, 6, 10, 14."
+      />
 
       <Card className="mb-3 !px-3 !py-1.5">
         <p className={`font-semibold text-[13px] py-2 ${due.length ? 'text-bad' : ''}`}>

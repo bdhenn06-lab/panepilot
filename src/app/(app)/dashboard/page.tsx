@@ -3,7 +3,7 @@
 import Link from 'next/link';
 import { useWorkspace } from '@/components/workspace';
 import { useToast } from '@/components/toast';
-import { Button, Card, Ghost, Kpi } from '@/components/ui';
+import { Button, Card, Ghost, GradeBadge, Kpi, PageHead } from '@/components/ui';
 import { IconAlarm, IconRefresh } from '@/components/icons';
 import { formatMoney, formatNum, todayISO } from '@/lib/scoring';
 import { Loading } from '@/components/loading';
@@ -62,9 +62,11 @@ export default function DashboardPage() {
   const nextBest = ws.scored.filter((x) => !ws.states[x.id]?.status).slice(0, 5);
 
   return (
-    <div>
-      <div className="flex items-center gap-2.5 mb-3 flex-wrap">
-        <p className="text-base font-semibold">Team territory</p>
+    <div className="max-w-[1240px]">
+      <PageHead
+        title="Team territory"
+        sub="Statuses, notes, and sequence progress sync for the whole team."
+      >
         <Ghost
           onClick={() => {
             toast('Pulling latest…');
@@ -72,19 +74,19 @@ export default function DashboardPage() {
           }}
         >
           <IconRefresh />
-          Refresh team activity
+          Refresh
         </Ghost>
         {c.due > 0 && (
           <Link href="/follow-ups">
-            <Ghost className="!text-bad !border-bad">
+            <Ghost className="!text-bad !border-bad/40 !bg-bad-soft">
               <IconAlarm />
               {c.due} follow-ups due
             </Ghost>
           </Link>
         )}
-      </div>
+      </PageHead>
 
-      <div className="grid grid-cols-2 md:grid-cols-4 gap-2.5 mb-3.5">
+      <div className="grid grid-cols-2 lg:grid-cols-4 gap-3 mb-4">
         <Kpi
           label={ws.settings.serviceMode === 'residential' ? 'Residential parcels' : 'Commercial parcels'}
           value={formatNum(ws.parcels.length)}
@@ -99,50 +101,46 @@ export default function DashboardPage() {
         />
       </div>
 
-      <div className="grid md:grid-cols-2 gap-3">
+      <div className="grid lg:grid-cols-2 gap-3">
         <Card>
-          <p className="font-semibold text-[13px] mb-2.5">Acquisition funnel</p>
+          <p className="font-semibold text-[13px] mb-3">Acquisition funnel</p>
           {funnel.map(([label, n]) => (
-            <div key={label} className="flex items-center gap-2.5 mb-2">
-              <span className="text-xs w-[88px] text-ink2">{label}</span>
+            <div key={label} className="flex items-center gap-3 mb-2.5 last:mb-0">
+              <span className="text-[12px] w-[92px] text-ink2 shrink-0">{label}</span>
               <div className="score-bar">
                 <i style={{ width: `${(n / mx) * 100}%` }} />
               </div>
-              <b className="text-[12.5px] w-11 text-right tabular-nums">{formatNum(n)}</b>
+              <b className="num text-[12.5px] w-14 text-right">{formatNum(n)}</b>
             </div>
           ))}
         </Card>
         <Card>
-          <p className="font-semibold text-[13px] mb-2">Next best actions</p>
-          {nextBest.map((x) => (
-            <div
-              key={x.id}
-              className="flex gap-2.5 items-center py-1.5 border-b border-dashed border-line last:border-0"
+          <div className="flex items-center justify-between mb-2">
+            <p className="font-semibold text-[13px]">Next best actions</p>
+            <Link
+              href="/candidates"
+              className="text-[12px] text-accent hover:text-accent-dark no-underline font-medium"
             >
-              <span
-                className={`inline-grid place-items-center w-6 h-6 rounded-lg font-bold text-[11px] shrink-0 ${
-                  x.score.grade === 'A'
-                    ? 'bg-good-soft text-good'
-                    : x.score.grade === 'B'
-                      ? 'bg-accent-soft text-accent-dark'
-                      : x.score.grade === 'C'
-                        ? 'bg-warn-soft text-warn'
-                        : 'bg-soft text-ink3'
-                }`}
-              >
-                {x.score.grade}
-              </span>
+              All candidates →
+            </Link>
+          </div>
+          {nextBest.map((x) => (
+            <Link
+              key={x.id}
+              href={`/candidates?focus=${x.id}`}
+              className="flex gap-3 items-center py-2 border-b border-line last:border-0 no-underline text-ink -mx-1 px-1 rounded-lg hover:bg-soft transition-colors"
+            >
+              <GradeBadge grade={x.score.grade} size="sm" />
               <div className="flex-1 min-w-0">
                 <p className="text-[12.5px] font-semibold truncate">{x.row.address}</p>
-                <p className="text-[11px] text-ink3 truncate">
-                  {formatMoney(x.est.annualQuarterly)}/yr · {x.row.owner_name || ''}
-                </p>
+                <p className="text-[11px] text-ink3 truncate">{x.row.owner_name || 'Owner unknown'}</p>
               </div>
-            </div>
+              <span className="num text-[12.5px] font-semibold shrink-0">
+                {formatMoney(x.est.annualQuarterly)}
+                <span className="text-[10.5px] font-normal text-ink3">/yr</span>
+              </span>
+            </Link>
           ))}
-          <Link href="/candidates">
-            <Ghost className="mt-2.5">Open candidates →</Ghost>
-          </Link>
         </Card>
       </div>
     </div>

@@ -5,7 +5,7 @@ import { useMemo, useState } from 'react';
 import { createClient } from '@/lib/supabase/client';
 import { useWorkspace } from '@/components/workspace';
 import { useToast } from '@/components/toast';
-import { Button, Callout, Card, Ghost, GhostLink } from '@/components/ui';
+import { Button, Callout, Card, Ghost, GhostLink, PageHead } from '@/components/ui';
 import { IconMap, IconRoute, IconTrash } from '@/components/icons';
 import { Loading } from '@/components/loading';
 import { EmptyRedirect } from '@/components/empty-redirect';
@@ -108,11 +108,15 @@ export default function MapPage() {
 
   return (
     <div>
-      <div className="flex items-center gap-2.5 flex-wrap mb-2.5">
-        <p className="text-base font-semibold">Map &amp; routes</p>
-        <span className="text-xs text-ink2">
-          {formatNum(withCoords.length)} of {formatNum(ws.scored.length)} parcels have coordinates
-        </span>
+      <PageHead
+        title="Map & routes"
+        sub={
+          <>
+            <span className="num">{formatNum(withCoords.length)}</span> of{' '}
+            <span className="num">{formatNum(ws.scored.length)}</span> parcels have coordinates
+          </>
+        }
+      >
         {missingCoords.length > 0 && (
           <Button className="!h-8 !text-xs" disabled={geocoding} onClick={() => void geocodeMissing()}>
             <IconMap />
@@ -121,12 +125,12 @@ export default function MapPage() {
               : `Geocode ${formatNum(missingCoords.length)} addresses`}
           </Button>
         )}
-        <span className="ml-auto flex gap-2 items-center text-[11px] font-semibold">
-          <span className="rounded-full px-2.5 py-0.5 bg-good-soft text-good">A</span>
-          <span className="rounded-full px-2.5 py-0.5 bg-accent-soft text-accent-dark">B</span>
-          <span className="rounded-full px-2.5 py-0.5 bg-warn-soft text-warn">C</span>
+        <span className="flex gap-1.5 items-center text-[11px] font-semibold">
+          <span className="num rounded-full px-2.5 py-0.5 bg-good text-white">A</span>
+          <span className="num rounded-full px-2.5 py-0.5 bg-accent text-white">B</span>
+          <span className="num rounded-full px-2.5 py-0.5 bg-warn-soft text-warn">C</span>
         </span>
-      </div>
+      </PageHead>
 
       {withCoords.length ? (
         <TerritoryMap

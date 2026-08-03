@@ -4,7 +4,7 @@ import { Suspense, useMemo, useState } from 'react';
 import { useSearchParams } from 'next/navigation';
 import { useWorkspace, type ScoredParcel } from '@/components/workspace';
 import { useToast } from '@/components/toast';
-import { Card, Ghost, GradeBadge, Input, ScoreBar } from '@/components/ui';
+import { Card, Ghost, GradeBadge, Input, PageHead, ScoreBar } from '@/components/ui';
 import { IconChevronDown, IconRoute } from '@/components/icons';
 import { Loading } from '@/components/loading';
 import { ProspectDetail } from '@/components/prospect-detail';
@@ -73,83 +73,86 @@ function CandidatesView() {
     URL.revokeObjectURL(a.href);
   }
 
+  const selectClass =
+    'h-9 border border-line2 rounded-lg text-[12.5px] bg-panel px-2 text-ink2 cursor-pointer hover:border-ink3 transition-colors';
+
   return (
-    <div>
+    <div className="max-w-[1240px]">
+      <PageHead
+        title="Candidates"
+        sub={
+          <>
+            <span className="num font-semibold text-ink">{formatNum(view.length)}</span> matches
+            {view.length > SHOW ? ` · showing top ${SHOW}` : ''}
+            {ws.deadSignals.length > 0 && (
+              <>
+                {' · '}
+                <span
+                  className="text-warn"
+                  title={`This county publishes nothing that separates buildings on ${ws.deadSignals.join(', ').toLowerCase()}, so the remaining signals carry the full score.`}
+                >
+                  graded on {5 - ws.deadSignals.length} of 5 signals
+                </span>
+              </>
+            )}
+          </>
+        }
+      >
+        <Ghost onClick={exportCsv}>Export view</Ghost>
+      </PageHead>
+
       <div className="flex items-center gap-2 flex-wrap mb-3">
-        <p className="text-base font-semibold">Candidates</p>
-        <select
-          className="h-[34px] border border-line2 rounded-md text-xs bg-panel px-1.5"
-          value={grade}
-          onChange={(e) => setGrade(e.target.value)}
-        >
+        <Input
+          className="!h-9 max-w-[280px] !text-[12.5px]"
+          placeholder="Search address, owner, or city"
+          value={search}
+          onChange={(e) => setSearch(e.target.value)}
+        />
+        <select className={selectClass} value={grade} onChange={(e) => setGrade(e.target.value)}>
           <option value="">All grades</option>
           {['A', 'B', 'C', 'D'].map((g) => (
             <option key={g}>{g}</option>
           ))}
         </select>
-        <select
-          className="h-[34px] border border-line2 rounded-md text-xs bg-panel px-1.5"
-          value={status}
-          onChange={(e) => setStatus(e.target.value)}
-        >
+        <select className={selectClass} value={status} onChange={(e) => setStatus(e.target.value)}>
           <option value="">Any status</option>
           <option value="none">Untouched</option>
           {['Sequencing', 'Meeting', 'Proposal', 'Won', 'Dead'].map((s) => (
             <option key={s}>{s}</option>
           ))}
         </select>
-        <Input
-          className="!h-[34px] max-w-[220px] !text-[12.5px]"
-          placeholder="Search address / owner / city"
-          value={search}
-          onChange={(e) => setSearch(e.target.value)}
-        />
-        <span className="ml-auto">
-          <Ghost onClick={exportCsv}>Export view</Ghost>
-        </span>
       </div>
-
-      <p className="text-[11.5px] text-ink3 mb-2">
-        {formatNum(view.length)} matches{view.length > SHOW ? ` · showing top ${SHOW}` : ''}
-        {ws.deadSignals.length > 0 && (
-          <>
-            {' · '}
-            <span
-              className="text-warn"
-              title={`This county publishes nothing that separates buildings on ${ws.deadSignals.join(', ').toLowerCase()}, so the remaining signals carry the full score.`}
-            >
-              graded on {5 - ws.deadSignals.length} of 5 signals
-            </span>
-          </>
-        )}
-      </p>
 
       {view.slice(0, SHOW).map((x: ScoredParcel) => {
         const s = ws.states[x.id];
         const inRoute = ws.route.includes(x.id);
         const isOpen = open === x.id;
         return (
-          <Card key={x.id} className="mb-2 !py-3">
+          <Card
+            key={x.id}
+            className={`mb-1.5 !py-0 !px-0 overflow-hidden transition-colors ${
+              isOpen ? 'border-accent/40' : 'hover:border-line2'
+            }`}
+          >
             <div
-              className="flex gap-2.5 items-center flex-wrap cursor-pointer"
+              className="flex gap-3 items-center cursor-pointer px-3.5 py-3"
               onClick={() => setOpen(isOpen ? null : x.id)}
             >
               <GradeBadge grade={x.score.grade} />
-              <div className="flex-1 min-w-[180px]">
-                <p className="font-semibold text-[13.5px]">
+
+              <div className="flex-1 min-w-0">
+                <p className="font-semibold text-[13.5px] truncate">
                   {x.row.address}
-                  {x.row.city ? `, ${x.row.city}` : ''}
+                  {x.row.city ? (
+                    <span className="font-normal text-ink3">, {x.row.city}</span>
+                  ) : null}
                 </p>
-                <p className="text-[11.5px] text-ink2">
-                  <b className="text-ink">
-                    {formatMoney(x.thesis.priceLow)}–{formatMoney(x.thesis.priceHigh)}
-                  </b>{' '}
-                  first clean · {formatMoney(x.est.annualQuarterly)}/yr ·{' '}
-                  {x.row.owner_name || 'owner unknown'}
+                <p className="text-[11.5px] text-ink3 truncate">
+                  {x.row.owner_name || 'Owner unknown'}
                   {s?.status ? (
                     <>
                       {' · '}
-                      <b>
+                      <b className="text-ink2">
                         {s.status}
                         {s.touch ? ` (touch ${s.touch}/5)` : ''}
                       </b>
@@ -162,14 +165,34 @@ function CandidatesView() {
                     </>
                   ) : null}
                 </p>
-                <p className="text-[11px] text-ink3 mt-0.5">{x.thesis.headline}</p>
+                <p className="text-[11px] text-ink3 truncate mt-0.5 max-sm:hidden">
+                  {x.thesis.headline}
+                </p>
+                {/* Phone layout has no room for the right-hand column, but the
+                    price is the whole point — inline it rather than drop it. */}
+                <p className="num text-[12px] font-semibold mt-0.5 sm:hidden">
+                  {formatMoney(x.thesis.priceLow)}–{formatMoney(x.thesis.priceHigh)}
+                  <span className="text-[10px] font-normal text-ink3"> first clean</span>
+                </p>
               </div>
-              <div className="flex items-center gap-2 min-w-[110px]">
+
+              {/* Money first — it's what the operator is actually deciding on. */}
+              <div className="text-right shrink-0 max-sm:hidden">
+                <p className="num text-[14px] font-semibold leading-tight">
+                  {formatMoney(x.thesis.priceLow)}–{formatMoney(x.thesis.priceHigh)}
+                </p>
+                <p className="text-[10.5px] text-ink3">
+                  first clean · <span className="num">{formatMoney(x.est.annualQuarterly)}</span>/yr
+                </p>
+              </div>
+
+              <div className="flex items-center gap-2 w-[92px] shrink-0 max-lg:hidden">
                 <ScoreBar pct={x.score.total} />
-                <b className="text-[12.5px] tabular-nums">{x.score.total}</b>
+                <b className="num text-[12.5px] w-[22px] text-right">{x.score.total}</b>
               </div>
+
               <Ghost
-                className={inRoute ? '!bg-accent-soft !text-accent-dark !border-accent' : ''}
+                className={`shrink-0 ${inRoute ? '!bg-accent-soft !text-accent-dark !border-accent' : ''}`}
                 onClick={(e) => {
                   e.stopPropagation();
                   ws.toggleRouteStop(x.id);
@@ -177,14 +200,14 @@ function CandidatesView() {
                 }}
               >
                 <IconRoute />
-                {inRoute ? 'In route' : 'Route'}
+                <span className="max-sm:hidden">{inRoute ? 'In route' : 'Route'}</span>
               </Ghost>
               <IconChevronDown
-                className={`text-ink3 transition-transform ${isOpen ? 'rotate-180' : ''}`}
+                className={`text-ink3 transition-transform shrink-0 ${isOpen ? 'rotate-180' : ''}`}
               />
             </div>
             {isOpen && (
-              <div className="mt-3 border-t border-dashed border-line pt-3">
+              <div className="border-t border-line bg-soft px-3.5 py-3.5">
                 <ProspectDetail x={x} />
               </div>
             )}

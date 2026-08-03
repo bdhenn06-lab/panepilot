@@ -1,26 +1,32 @@
 @import "tailwindcss";
 
-/* PanePilot design tokens — ported from the validated prototype.
-   Clean, light, blue accent. */
+/* PanePilot design tokens.
+
+   Warm paper rather than sterile gray, deep teal rather than default SaaS blue,
+   and earthy status colours that sit together without shouting. The audience is
+   a non-technical owner reading this in a truck between jobs, so the priorities
+   are legibility and calm — character comes from the type and the palette, not
+   from decoration. */
 @theme {
-  --color-bg: #f4f4f2;
+  --color-bg: #f2f1ed;
   --color-panel: #ffffff;
-  --color-soft: #fafaf8;
-  --color-line: #e4e4e0;
-  --color-line2: #d6d6d0;
-  --color-ink: #111113;
-  --color-ink2: #54534f;
-  --color-ink3: #8a8983;
-  --color-accent: #2a78d6;
-  --color-accent-dark: #185fa5;
-  --color-accent-soft: #e6f1fb;
-  --color-good: #0f9d58;
-  --color-good-soft: #e8f7ef;
-  --color-warn: #b45309;
-  --color-warn-soft: #fef3e2;
-  --color-bad: #c0392b;
-  --color-bad-soft: #fdecec;
-  --font-sans: -apple-system, "Segoe UI", Roboto, Helvetica, Arial, sans-serif;
+  --color-soft: #f9f8f5;
+  --color-line: #e5e2db;
+  --color-line2: #d3cfc5;
+  --color-ink: #16181a;
+  --color-ink2: #4f545a;
+  --color-ink3: #878c93;
+  --color-accent: #0d5c63;
+  --color-accent-dark: #094449;
+  --color-accent-soft: #e2eeef;
+  --color-good: #1a7f4b;
+  --color-good-soft: #e6f4ec;
+  --color-warn: #9a5b0a;
+  --color-warn-soft: #fbf0e0;
+  --color-bad: #a8322a;
+  --color-bad-soft: #fbeae8;
+  --font-sans: var(--font-plex-sans), ui-sans-serif, system-ui, sans-serif;
+  --font-mono: var(--font-plex-mono), ui-monospace, monospace;
 }
 
 body {
@@ -30,10 +36,18 @@ body {
   line-height: 1.5;
 }
 
+/* Numbers the operator acts on — prices, scores, counts. Mono keeps them in
+   vertical register down a long list and separates data from prose. */
+.num {
+  font-family: var(--font-mono);
+  font-variant-numeric: tabular-nums;
+  letter-spacing: -0.01em;
+}
+
 /* Score progress bar (used everywhere; simpler as a utility than a component prop soup). */
 .score-bar {
-  height: 6px;
-  border-radius: 3px;
+  height: 5px;
+  border-radius: 999px;
   background: var(--color-line);
   overflow: hidden;
   flex: 1;
@@ -42,7 +56,7 @@ body {
   display: block;
   height: 100%;
   background: var(--color-accent);
-  border-radius: 3px;
+  border-radius: 999px;
 }
 
 /* Print styles for the proposal page. */

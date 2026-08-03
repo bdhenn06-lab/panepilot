@@ -3,7 +3,7 @@
 import { useMemo } from 'react';
 import { useWorkspace, type ScoredParcel } from '@/components/workspace';
 import { useToast } from '@/components/toast';
-import { Card, Ghost, GradeBadge } from '@/components/ui';
+import { Card, Ghost, GradeBadge, PageHead } from '@/components/ui';
 import { IconRoute } from '@/components/icons';
 import { Loading } from '@/components/loading';
 import { EmptyRedirect } from '@/components/empty-redirect';
@@ -37,13 +37,17 @@ export default function PortfoliosPage() {
   if (!ws.parcels.length) return <EmptyRedirect />;
 
   return (
-    <div>
-      <p className="text-base font-semibold mb-1">Portfolio owners</p>
-      <p className="text-[12.5px] text-ink2 mb-3">
-        {formatNum(multi.length)} owners hold 2+{' '}
-        {ws.settings.serviceMode === 'residential' ? 'residential' : 'commercial'} parcels (matched
-        across LLC name variations). One relationship, many roofs.
-      </p>
+    <div className="max-w-[1240px]">
+      <PageHead
+        title="Portfolio owners"
+        sub={
+          <>
+            <span className="num font-semibold text-ink">{formatNum(multi.length)}</span> owners
+            hold 2+ {ws.settings.serviceMode === 'residential' ? 'residential' : 'commercial'}{' '}
+            parcels, matched across LLC name variations. One relationship, many roofs.
+          </>
+        }
+      />
       {multi.slice(0, 25).map((g) => (
         <Card key={g.name + g.items[0].id} className="mb-2">
           <div className="flex gap-2.5 items-center flex-wrap">
