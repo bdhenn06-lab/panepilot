@@ -81,6 +81,7 @@ export function buildContext(parcels: ParcelInput[]): TerritoryContext {
   const zipCounts: Record<string, number> = {};
   const ownerCounts: Record<string, number> = {};
   const valuesPerSqft: number[] = [];
+  const marketValues: number[] = [];
   for (const p of parcels) {
     const zip = String(p.zip ?? '').slice(0, 5);
     if (zip) zipCounts[zip] = (zipCounts[zip] || 0) + 1;
@@ -89,8 +90,10 @@ export function buildContext(parcels: ParcelInput[]): TerritoryContext {
     const mv = parseNum(p.marketValue);
     const sqft = parseNum(p.bldgSqft);
     if (mv > 0 && sqft > 0) valuesPerSqft.push(mv / sqft);
+    if (mv > 0) marketValues.push(mv);
   }
   valuesPerSqft.sort((a, b) => a - b);
+  marketValues.sort((a, b) => a - b);
   let zipMax = 1;
   for (const z of Object.keys(zipCounts)) if (zipCounts[z] > zipMax) zipMax = zipCounts[z];
   return {
@@ -98,7 +101,21 @@ export function buildContext(parcels: ParcelInput[]): TerritoryContext {
     zipMax,
     ownerCounts,
     medianValuePerSqft: median(valuesPerSqft),
+    // Floor at the 5th percentile to shrug off $1 placeholder values, but anchor
+    // the ceiling at the actual maximum: the top of a ranked list is exactly the
+    // highest-value parcels, and a 95th-percentile ceiling would pin them all at
+    // full marks. Log-scaling keeps a lone very-expensive parcel from crushing
+    // the rest toward the floor.
+    marketValueLo: percentile(marketValues, 0.05),
+    marketValueHi: marketValues.length ? marketValues[marketValues.length - 1] : 0,
   };
+}
+
+/** Value at a fraction through a pre-sorted list, or 0 when empty. */
+function percentile(sorted: number[], frac: number): number {
+  if (!sorted.length) return 0;
+  const idx = Math.min(sorted.length - 1, Math.max(0, Math.round(frac * (sorted.length - 1))));
+  return sorted[idx];
 }
 
 /** Same metro as the operator — the signal actually worth acting on. */
@@ -166,18 +183,43 @@ export function paneScore(
     total += points;
   };
 
-  // 1. Contract value, log-scaled between the floor and ceiling anchors.
-  // Anchors are org-configurable — commercial contracts and residential
-  // cleans differ by an order of magnitude, so they need different scales.
-  const valueFrac = Math.max(
-    0,
-    Math.min(1, Math.log((est.annualQuarterly || 1) / s.valueFloor) / Math.log(s.valueCeil / s.valueFloor)),
-  );
+  // 1. Contract value.
+  //
+  // Normally this is the estimated annual clean revenue, log-scaled between the
+  // floor and ceiling anchors. But that estimate is built on building size, and
+  // a county with no size makes the estimator fabricate the *same* size for
+  // every parcel — so the factor flatlines and thousands of buildings score
+  // identically (every Hamilton parcel came out 79). When the price is a guess
+  // like that, rank on the parcel's assessed market value instead: real data
+  // that varies by orders of magnitude, log-scaled against the territory's own
+  // 5th–95th percentile range so it adapts to any county's price level.
+  const parcelValue = parseNum(parcel.marketValue);
+  const useAssessed =
+    est.assumed && parcelValue > 0 && ctx.marketValueHi > ctx.marketValueLo;
+
+  const valueFrac = useAssessed
+    ? Math.max(
+        0,
+        Math.min(
+          1,
+          Math.log(parcelValue / ctx.marketValueLo) /
+            Math.log(ctx.marketValueHi / ctx.marketValueLo),
+        ),
+      )
+    : Math.max(
+        0,
+        Math.min(
+          1,
+          Math.log((est.annualQuarterly || 1) / s.valueFloor) / Math.log(s.valueCeil / s.valueFloor),
+        ),
+      );
   add(
     'Contract value',
     valueFrac * s.weightValue,
     s.weightValue,
-    `${formatMoney(est.annualQuarterly)}/yr quarterly, log-scaled`,
+    useAssessed
+      ? `${formatMoney(parcelValue)} assessed value, ranked in territory`
+      : `${formatMoney(est.annualQuarterly)}/yr quarterly, log-scaled`,
   );
 
   // 2. Building fit: use-class multiplier x floor-count sweet spot.

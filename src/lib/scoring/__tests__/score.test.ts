@@ -265,3 +265,78 @@ describe('locality strength', () => {
     expect(isLocalMailing('WILMINGTON, DE 19801', S)).toBe(false);
   });
 });
+
+/**
+ * When the county has no building size, the price estimator fabricates the same
+ * size for every parcel, so the contract-value factor flatlines and thousands
+ * of buildings land on the identical score (every Hamilton parcel came out 79).
+ * The fix ranks contract value on the parcel's assessed market value instead —
+ * real data that varies enormously — but only when the price itself is a guess.
+ */
+describe('contract value falls back to assessed value on sizeless data', () => {
+  const sizeless = (mv: number, addr: string): ParcelInput => ({
+    address: addr,
+    zip: '45202',
+    landUse: 'Office',
+    ownerName: 'ACME LLC',
+    ownerMailing: 'Cincinnati, OH 45202',
+    marketValue: mv,
+  });
+
+  it('spreads the contract-value factor across a range of assessed values', () => {
+    const parcels = [
+      sizeless(30_000, '1 Cheap St'),
+      sizeless(300_000, '2 Mid St'),
+      sizeless(3_000_000, '3 Premium St'),
+    ];
+    const ctx = buildContext(parcels);
+    const value = (p: ParcelInput) =>
+      paneScore(p, estimate(p, S), ctx, S).parts.find((x) => x.label === 'Contract value')!.points;
+    expect(value(parcels[2])).toBeGreaterThan(value(parcels[0]));
+    expect(value(parcels[1])).toBeGreaterThan(value(parcels[0]));
+    expect(value(parcels[2])).toBeGreaterThan(value(parcels[1]));
+  });
+
+  it('breaks the all-identical-score tie on sizeless data', () => {
+    const parcels = [sizeless(30_000, '1 Cheap St'), sizeless(3_000_000, '3 Premium St')];
+    const ctx = buildContext(parcels);
+    const total = (p: ParcelInput) => paneScore(p, estimate(p, S), ctx, S).total;
+    expect(total(parcels[1])).not.toBe(total(parcels[0]));
+  });
+
+  it('says the score came from assessed value, not a fabricated clean price', () => {
+    const parcels = [sizeless(30_000, '1 St'), sizeless(3_000_000, '2 St')];
+    const ctx = buildContext(parcels);
+    const part = paneScore(parcels[1], estimate(parcels[1], S), ctx, S).parts.find(
+      (x) => x.label === 'Contract value',
+    )!;
+    expect(part.why).toMatch(/assessed/i);
+    expect(part.why).not.toMatch(/quarterly/i);
+  });
+
+  it('leaves counties with real building size on the price-based scale', () => {
+    const withSqft = (sqft: number, addr: string): ParcelInput => ({
+      address: addr,
+      zip: '27601',
+      landUse: 'Office',
+      bldgSqft: sqft,
+      stories: 2,
+      marketValue: 9_999_999,
+    });
+    const parcels = [withSqft(5000, '1 St'), withSqft(80000, '2 St')];
+    const ctx = buildContext(parcels);
+    const part = paneScore(parcels[1], estimate(parcels[1], S), ctx, S).parts.find(
+      (x) => x.label === 'Contract value',
+    )!;
+    expect(part.why).toMatch(/quarterly/i);
+  });
+
+  it('does not fall back when there is no assessed value to rank on', () => {
+    const bare = (addr: string): ParcelInput => ({ address: addr, landUse: 'Office' });
+    const parcels = [bare('1 St'), bare('2 St')];
+    const ctx = buildContext(parcels);
+    const value = (p: ParcelInput) =>
+      paneScore(p, estimate(p, S), ctx, S).parts.find((x) => x.label === 'Contract value')!.points;
+    expect(value(parcels[0])).toBe(value(parcels[1]));
+  });
+});

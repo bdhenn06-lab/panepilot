@@ -128,6 +128,14 @@ export interface TerritoryContext {
   ownerCounts: Record<string, number>;
   /** Median market value per building sq ft across the territory. */
   medianValuePerSqft: number;
+  /**
+   * Assessed market-value anchors (5th/95th percentile) across parcels that
+   * report one. Used to rank contract value on a county with no building size,
+   * where the price estimate is a fabricated constant. Both 0 when no parcel
+   * carries a value.
+   */
+  marketValueLo: number;
+  marketValueHi: number;
 }
 
 export interface BuildingUseClass {
