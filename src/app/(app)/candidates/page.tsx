@@ -21,8 +21,9 @@ function CandidatesView() {
   const [grade, setGrade] = useState('');
   const [status, setStatus] = useState('');
   const [open, setOpen] = useState<number | null>(() => {
-    const o = params.get('open');
-    return o ? Number(o) : null;
+    const o = params.get('open') ?? params.get('focus');
+    const n = o ? Number(o) : NaN;
+    return Number.isFinite(n) ? n : null;
   });
 
   const view = useMemo(() => {
@@ -123,7 +124,17 @@ function CandidatesView() {
         </select>
       </div>
 
-      {view.slice(0, SHOW).map((x: ScoredParcel) => {
+      {(() => {
+        // Deep links (dashboard next-best, follow-ups) target a specific parcel.
+        // The scan window is only the top of the list, so a lower-ranked open
+        // target has to be pulled in or the link opens a page with no detail.
+        const rows = view.slice(0, SHOW);
+        if (open != null && !rows.some((x) => x.id === open)) {
+          const target = view.find((x) => x.id === open);
+          if (target) rows.unshift(target);
+        }
+        return rows;
+      })().map((x: ScoredParcel) => {
         const s = ws.states[x.id];
         const inRoute = ws.route.includes(x.id);
         const isOpen = open === x.id;

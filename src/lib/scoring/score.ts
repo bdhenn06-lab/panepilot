@@ -189,13 +189,18 @@ export function paneScore(
   // floor and ceiling anchors. But that estimate is built on building size, and
   // a county with no size makes the estimator fabricate the *same* size for
   // every parcel — so the factor flatlines and thousands of buildings score
-  // identically (every Hamilton parcel came out 79). When the price is a guess
-  // like that, rank on the parcel's assessed market value instead: real data
-  // that varies by orders of magnitude, log-scaled against the territory's own
-  // 5th–95th percentile range so it adapts to any county's price level.
+  // identically (every Hamilton parcel came out 79). When sq ft is missing,
+  // rank on the parcel's assessed market value instead: real data that varies
+  // by orders of magnitude, log-scaled against the territory's own range so it
+  // adapts to any county's price level.
+  //
+  // Missing stories alone must not trigger this. Counties like Wake publish
+  // heated area and no floor count; the price still varies with that size, and
+  // switching to assessed value would throw the real size signal away.
   const parcelValue = parseNum(parcel.marketValue);
+  const sizeMissing = parseNum(parcel.bldgSqft) <= 0;
   const useAssessed =
-    est.assumed && parcelValue > 0 && ctx.marketValueHi > ctx.marketValueLo;
+    sizeMissing && parcelValue > 0 && ctx.marketValueHi > ctx.marketValueLo;
 
   const valueFrac = useAssessed
     ? Math.max(

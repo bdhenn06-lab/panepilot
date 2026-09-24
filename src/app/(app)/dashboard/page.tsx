@@ -127,7 +127,7 @@ export default function DashboardPage() {
           {nextBest.map((x) => (
             <Link
               key={x.id}
-              href={`/candidates?focus=${x.id}`}
+              href={`/candidates?open=${x.id}`}
               className="flex gap-3 items-center py-2 border-b border-line last:border-0 no-underline text-ink -mx-1 px-1 rounded-lg hover:bg-soft transition-colors"
             >
               <GradeBadge grade={x.score.grade} size="sm" />

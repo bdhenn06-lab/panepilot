@@ -314,6 +314,25 @@ describe('contract value falls back to assessed value on sizeless data', () => {
     expect(part.why).not.toMatch(/quarterly/i);
   });
 
+  it('keeps the price scale when the county published sq ft but no story count', () => {
+    // Wake publishes heated area and no floors. Stories are assumed, but the
+    // price still tracks real size — assessed value must not replace it.
+    const withSqft = (sqft: number, addr: string): ParcelInput => ({
+      address: addr,
+      zip: '27601',
+      landUse: 'Office',
+      bldgSqft: sqft,
+      marketValue: sqft === 5000 ? 9_999_999 : 50_000,
+    });
+    const parcels = [withSqft(5000, '1 St'), withSqft(80000, '2 St')];
+    const ctx = buildContext(parcels);
+    const part = (p: ParcelInput) =>
+      paneScore(p, estimate(p, S), ctx, S).parts.find((x) => x.label === 'Contract value')!;
+    expect(part(parcels[0]).why).toMatch(/quarterly/i);
+    expect(part(parcels[1]).why).toMatch(/quarterly/i);
+    expect(part(parcels[1]).points).toBeGreaterThan(part(parcels[0]).points);
+  });
+
   it('leaves counties with real building size on the price-based scale', () => {
     const withSqft = (sqft: number, addr: string): ParcelInput => ({
       address: addr,

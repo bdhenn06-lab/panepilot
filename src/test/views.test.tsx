@@ -8,9 +8,10 @@ import type { ScoredParcel } from '@/components/workspace';
 // ---- mocks -----------------------------------------------------------------
 
 const push = vi.fn();
+let search = '';
 vi.mock('next/navigation', () => ({
   useRouter: () => ({ push, refresh: vi.fn() }),
-  useSearchParams: () => new URLSearchParams(),
+  useSearchParams: () => new URLSearchParams(search),
   usePathname: () => '/candidates',
 }));
 
@@ -70,6 +71,7 @@ import PortfoliosPage from '@/app/(app)/portfolios/page';
 beforeEach(() => {
   cleanup();
   vi.clearAllMocks();
+  search = '';
   mockWs.mockImplementation(() => workspaceValue());
 });
 
@@ -84,6 +86,9 @@ describe('Dashboard', () => {
     expect(screen.getAllByText(String(gradeA)).length).toBeGreaterThan(0);
     expect(screen.getByText('Acquisition funnel')).toBeDefined();
     expect(screen.getByText('Untouched')).toBeDefined();
+    const next = scored.find((x) => !states[x.id]?.status)!;
+    const link = screen.getByRole('link', { name: new RegExp(next.row.address) });
+    expect(link.getAttribute('href')).toBe(`/candidates?open=${next.id}`);
   });
 
   it('splits the funnel by status and totals won value', () => {
@@ -146,6 +151,14 @@ describe('Candidates', () => {
     fireEvent.click(screen.getAllByText(new RegExp(scored[0].row.address))[0]);
     fireEvent.click(screen.getByText('Mark sent'));
     expect(markSent).toHaveBeenCalledWith(scored[0].id);
+  });
+
+  it('opens the prospect named by ?open= from the dashboard and follow-ups', () => {
+    const last = scored[scored.length - 1];
+    search = `open=${last.id}`;
+    render(<CandidatesPage />);
+    expect(screen.getByText(/WHY THIS SCORE/)).toBeDefined();
+    expect(screen.getAllByText(new RegExp(last.row.address)).length).toBeGreaterThan(0);
   });
 
   it('status dropdown writes through setState', () => {

@@ -129,10 +129,11 @@ export interface TerritoryContext {
   /** Median market value per building sq ft across the territory. */
   medianValuePerSqft: number;
   /**
-   * Assessed market-value anchors (5th/95th percentile) across parcels that
-   * report one. Used to rank contract value on a county with no building size,
-   * where the price estimate is a fabricated constant. Both 0 when no parcel
-   * carries a value.
+   * Assessed market-value anchors across parcels that report one. The floor is
+   * the 5th percentile (to shrug off $1 placeholders) and the ceiling is the
+   * actual maximum. Used to rank contract value on a county with no building
+   * size, where the price estimate is a fabricated constant. Both 0 when no
+   * parcel carries a value.
    */
   marketValueLo: number;
   marketValueHi: number;
