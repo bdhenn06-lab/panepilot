@@ -20,8 +20,9 @@ Production rebuild of the validated single-file prototype (`PanePilot-Cloud`).
 
 1. **Supabase project**: [supabase.com](https://supabase.com) → New project.
 2. **Schema**: SQL Editor → paste `supabase/migrations/0001_init.sql` → Run.
-3. **Keys**: Project Settings → API → copy Project URL + anon key into
-   `.env.local` (start from `.env.example`).
+3. **Keys**: `cp .env.example .env.local`, then paste the Project URL + anon key
+   from Project Settings → API. Without these, every page shows a
+   "setup required" notice instead of loading.
 4. **Auth settings** (Supabase → Authentication):
    - URL Configuration → set Site URL to your deployed URL (or `http://localhost:3000`),
      and add it to Redirect URLs — magic links land on `/auth/callback`.
