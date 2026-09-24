@@ -14,8 +14,17 @@ supabase start
 
 echo "==> Writing .env.local from Supabase status"
 STATUS_JSON="$(supabase status -o json)"
-API_URL="$(printf '%s' "$STATUS_JSON" | grep -oP '"API_URL":"\K[^"]+')"
-ANON_KEY="$(printf '%s' "$STATUS_JSON" | grep -oP '"ANON_KEY":"\K[^"]+')"
+# `supabase status -o json` is pretty-printed (a space follows each colon), so
+# the patterns must tolerate optional whitespace.
+API_URL="$(printf '%s' "$STATUS_JSON" | grep -oP '"API_URL":\s*"\K[^"]+')"
+ANON_KEY="$(printf '%s' "$STATUS_JSON" | grep -oP '"ANON_KEY":\s*"\K[^"]+')"
+STUDIO_URL="$(printf '%s' "$STATUS_JSON" | grep -oP '"STUDIO_URL":\s*"\K[^"]+')"
+
+if [ -z "$API_URL" ] || [ -z "$ANON_KEY" ]; then
+  echo "!! could not parse Supabase status; not overwriting .env.local" >&2
+  printf '%s\n' "$STATUS_JSON" >&2
+  exit 1
+fi
 
 cat > .env.local <<EOF
 NEXT_PUBLIC_SUPABASE_URL=${API_URL}
@@ -23,5 +32,5 @@ NEXT_PUBLIC_SUPABASE_ANON_KEY=${ANON_KEY}
 NEXT_PUBLIC_BILLING_ENABLED=false
 EOF
 
-echo "==> Supabase ready at ${API_URL} (Studio: $(printf '%s' "$STATUS_JSON" | grep -oP '"STUDIO_URL":"\K[^"]+'))"
+echo "==> Supabase ready at ${API_URL} (Studio: ${STUDIO_URL})"
 echo "==> start.sh complete"
