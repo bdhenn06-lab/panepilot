@@ -53,6 +53,14 @@ describe('supabase env configuration', () => {
     expect(names()).toEqual(ENV_KEYS);
   });
 
+  it('accepts a real project ref rather than reading it as a placeholder', () => {
+    // 20 random letters, the shape Supabase actually issues.
+    process.env.NEXT_PUBLIC_SUPABASE_URL = 'https://xlfwpiwgjyhccvbsyhyq.supabase.co';
+    process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY =
+      'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJyb2xlIjoiYW5vbiJ9.xxsignature';
+    expect(supabaseEnvProblems()).toEqual([]);
+  });
+
   it('accepts a local supabase stack over http', () => {
     process.env.NEXT_PUBLIC_SUPABASE_URL = 'http://127.0.0.1:54321';
     expect(supabaseEnvProblems()).toEqual([]);

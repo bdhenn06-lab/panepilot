@@ -23,9 +23,13 @@ export type EnvProblem = {
   detail: string;
 };
 
-/** A copied-but-unedited `.env.example` is the most common way to get here. */
+/**
+ * A copied-but-unedited `.env.example` is the most common way to get here. The
+ * `x{6,}` run is deliberately long: Supabase project refs are 20 random
+ * letters, so a shorter run would eventually reject a real one.
+ */
 function looksLikePlaceholder(value: string) {
-  return /your[-_]?project|example\.supabase|replace[-_]?me|xxxx|<.+>/i.test(value);
+  return /your[-_]?project|example\.supabase|replace[-_]?me|x{6,}|<.+>/i.test(value);
 }
 
 function isHttpUrl(value: string) {
