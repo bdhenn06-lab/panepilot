@@ -1,5 +1,6 @@
 import { createClient } from '@supabase/supabase-js';
 import type { Database } from '@/lib/db/database.types';
+import { getSupabasePublicEnv } from './env';
 
 /**
  * Service-role Supabase client — bypasses RLS. ONLY for trusted server code
@@ -10,7 +11,7 @@ import type { Database } from '@/lib/db/database.types';
 export function createAdminClient() {
   const key = process.env.SUPABASE_SERVICE_ROLE_KEY;
   if (!key) throw new Error('SUPABASE_SERVICE_ROLE_KEY missing.');
-  return createClient<Database>(process.env.NEXT_PUBLIC_SUPABASE_URL!, key, {
+  return createClient<Database>(getSupabasePublicEnv().url, key, {
     auth: { persistSession: false, autoRefreshToken: false },
   });
 }
