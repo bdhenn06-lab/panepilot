@@ -1,5 +1,10 @@
 import { createServerClient } from '@supabase/ssr';
 import { NextResponse, type NextRequest } from 'next/server';
+import {
+  isSupabaseConfigured,
+  MISSING_SUPABASE_ENV_MESSAGE,
+  supabaseEnv,
+} from '@/lib/supabase/env';
 
 const PUBLIC_PATHS = ['/', '/login', '/signup', '/forgot-password', '/auth', '/invite'];
 
@@ -7,12 +12,28 @@ function isPublic(pathname: string) {
   return PUBLIC_PATHS.some((p) => pathname === p || pathname.startsWith(p + '/'));
 }
 
+function setupRequired() {
+  const html = `<!doctype html><html><head><meta charset="utf-8"><title>PanePilot setup required</title></head>
+<body style="font-family:system-ui,sans-serif;max-width:40rem;margin:4rem auto;padding:0 1rem;line-height:1.5">
+<h1>PanePilot needs Supabase credentials</h1>
+<p>${MISSING_SUPABASE_ENV_MESSAGE}</p>
+<p>See “One-time setup” in the README.</p>
+</body></html>`;
+  return new NextResponse(html, {
+    status: 503,
+    headers: { 'content-type': 'text/html; charset=utf-8' },
+  });
+}
+
 export async function proxy(request: NextRequest) {
+  if (!isSupabaseConfigured()) return setupRequired();
+  const { url, anonKey } = supabaseEnv();
+
   let response = NextResponse.next({ request });
 
   const supabase = createServerClient(
-    process.env.NEXT_PUBLIC_SUPABASE_URL!,
-    process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!,
+    url,
+    anonKey,
     {
       cookies: {
         getAll() {
