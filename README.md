@@ -31,10 +31,18 @@ Production rebuild of the validated single-file prototype (`PanePilot-Cloud`).
 
 ```
 npm install
+cp .env.example .env.local   # then fill in the two Supabase values
 npm run dev        # http://localhost:3000
 npm test           # scoring engine unit tests (vitest)
 npm run build      # production build
 ```
+
+Only `NEXT_PUBLIC_SUPABASE_URL` and `NEXT_PUBLIC_SUPABASE_ANON_KEY` are
+required; everything else in `.env.example` is optional. Until those two are
+set, every page serves a setup checklist instead of the app (and the API routes
+answer `503`), so a fresh clone starts and tells you what it needs rather than
+erroring. `.env.local` is read at startup — restart the dev server after
+editing it.
 
 ## Deploy (Vercel)
 
