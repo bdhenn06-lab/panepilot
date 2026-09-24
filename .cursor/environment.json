@@ -1,0 +1,17 @@
+{
+  "name": "PanePilot",
+  "install": "bash .cursor/install.sh",
+  "start": "bash .cursor/start.sh",
+  "terminals": [
+    {
+      "name": "next-dev",
+      "command": "npm run dev",
+      "description": "Next.js dev server on http://localhost:3000 (reads .env.local written by start.sh)."
+    }
+  ],
+  "ports": [
+    { "name": "web", "port": 3000 },
+    { "name": "supabase-api", "port": 54321 },
+    { "name": "supabase-studio", "port": 54323 }
+  ]
+}
