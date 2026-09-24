@@ -1,18 +1,50 @@
 import { createServerClient } from '@supabase/ssr';
 import { NextResponse, type NextRequest } from 'next/server';
+import {
+  isSupabaseConfigured,
+  supabaseAnonKey,
+  supabaseEnvProblems,
+  supabaseUrl,
+} from '@/lib/supabase/config';
 
 const PUBLIC_PATHS = ['/', '/login', '/signup', '/forgot-password', '/auth', '/invite'];
+const SETUP_PATH = '/setup';
 
 function isPublic(pathname: string) {
   return PUBLIC_PATHS.some((p) => pathname === p || pathname.startsWith(p + '/'));
 }
 
 export async function proxy(request: NextRequest) {
+  const { pathname } = request.nextUrl;
+
+  // With no project attached there is no session to read, and every page in the
+  // app reads one — so serve the setup instructions in place of whichever page
+  // was asked for, and answer API callers with a status that says "not
+  // configured" rather than letting the Supabase SDK throw a 500.
+  if (!isSupabaseConfigured()) {
+    if (pathname.startsWith('/api/')) {
+      return NextResponse.json(
+        {
+          error: 'Supabase is not configured on this deployment.',
+          missing: supabaseEnvProblems(),
+        },
+        { status: 503 },
+      );
+    }
+    if (pathname === SETUP_PATH) return NextResponse.next({ request });
+    return NextResponse.rewrite(new URL(SETUP_PATH, request.url));
+  }
+
+  // Configured: the setup page has nothing left to say.
+  if (pathname === SETUP_PATH) {
+    return NextResponse.redirect(new URL('/', request.url));
+  }
+
   let response = NextResponse.next({ request });
 
   const supabase = createServerClient(
-    process.env.NEXT_PUBLIC_SUPABASE_URL!,
-    process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!,
+    supabaseUrl(),
+    supabaseAnonKey(),
     {
       cookies: {
         getAll() {
@@ -34,10 +66,10 @@ export async function proxy(request: NextRequest) {
     data: { user },
   } = await supabase.auth.getUser();
 
-  if (!user && !isPublic(request.nextUrl.pathname)) {
+  if (!user && !isPublic(pathname)) {
     const url = request.nextUrl.clone();
     url.pathname = '/login';
-    url.searchParams.set('next', request.nextUrl.pathname);
+    url.searchParams.set('next', pathname);
     return NextResponse.redirect(url);
   }
 
