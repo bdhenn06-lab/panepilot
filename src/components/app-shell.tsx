@@ -36,7 +36,8 @@ const TABS = [
 
 export function AppShell({ orgName, children }: { orgName: string; children: React.ReactNode }) {
   const pathname = usePathname();
-  const { userEmail, dueCount, signOut } = useWorkspace();
+  const { userEmail, dueCount, signOut, isDemo } = useWorkspace();
+  const leaveLabel = isDemo ? 'Exit sample' : 'Sign out';
 
   return (
     <div className="flex-1 flex max-md:flex-col">
@@ -83,15 +84,20 @@ export function AppShell({ orgName, children }: { orgName: string; children: Rea
         </nav>
 
         <div className="border-t border-line p-2.5">
+          {isDemo && (
+            <div className="mx-1 mb-2 px-2 py-1.5 rounded-md bg-accent-soft text-[11px] text-accent-dark">
+              Sample territory — edits stay in this browser.
+            </div>
+          )}
           <div className="px-1 pb-2 text-[11px] text-ink3 truncate" title={userEmail}>
-            {userEmail}
+            {isDemo ? 'Sample session' : userEmail}
           </div>
           <button
             onClick={() => void signOut()}
             className="w-full flex items-center gap-2.5 px-3 h-9 rounded-lg text-[13px] text-ink2 hover:bg-soft hover:text-ink cursor-pointer transition-colors"
           >
             <IconLogout className="text-ink3" />
-            Sign out
+            {leaveLabel}
           </button>
         </div>
       </aside>
@@ -107,7 +113,7 @@ export function AppShell({ orgName, children }: { orgName: string; children: Rea
         </div>
         <button
           onClick={() => void signOut()}
-          title="Sign out"
+          title={leaveLabel}
           className="p-2 rounded-lg text-ink3 hover:bg-soft cursor-pointer"
         >
           <IconLogout />

@@ -1,7 +1,9 @@
 import { createServerClient } from '@supabase/ssr';
 import { NextResponse, type NextRequest } from 'next/server';
+import { DEMO_COOKIE } from '@/lib/sample-territory';
+import { hasSupabaseEnv } from '@/lib/supabase/env';
 
-const PUBLIC_PATHS = ['/', '/login', '/signup', '/forgot-password', '/auth', '/invite'];
+const PUBLIC_PATHS = ['/', '/login', '/signup', '/forgot-password', '/auth', '/invite', '/demo'];
 
 function isPublic(pathname: string) {
   return PUBLIC_PATHS.some((p) => pathname === p || pathname.startsWith(p + '/'));
@@ -9,6 +11,17 @@ function isPublic(pathname: string) {
 
 export async function proxy(request: NextRequest) {
   let response = NextResponse.next({ request });
+  const pathname = request.nextUrl.pathname;
+  const isDemo = request.cookies.get(DEMO_COOKIE)?.value === '1';
+
+  // No backend configured: the sample territory is the working product.
+  if (!hasSupabaseEnv()) {
+    if (isPublic(pathname) || isDemo) return response;
+    const url = request.nextUrl.clone();
+    url.pathname = '/';
+    url.search = '';
+    return NextResponse.redirect(url);
+  }
 
   const supabase = createServerClient(
     process.env.NEXT_PUBLIC_SUPABASE_URL!,
@@ -34,10 +47,10 @@ export async function proxy(request: NextRequest) {
     data: { user },
   } = await supabase.auth.getUser();
 
-  if (!user && !isPublic(request.nextUrl.pathname)) {
+  if (!user && !isPublic(pathname) && !isDemo) {
     const url = request.nextUrl.clone();
     url.pathname = '/login';
-    url.searchParams.set('next', request.nextUrl.pathname);
+    url.searchParams.set('next', pathname);
     return NextResponse.redirect(url);
   }
 

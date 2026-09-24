@@ -19,9 +19,12 @@ Production rebuild of the validated single-file prototype (`PanePilot-Cloud`).
 ## One-time setup (~10 minutes)
 
 1. **Supabase project**: [supabase.com](https://supabase.com) → New project.
-2. **Schema**: SQL Editor → paste `supabase/migrations/0001_init.sql` → Run.
+2. **Schema**: SQL Editor → run every file in `supabase/migrations/` in order
+   (`0001` through `0007`). `0001` alone is not enough — later files add
+   residential settings, seat limits, realtime, and `job_outcomes`.
 3. **Keys**: Project Settings → API → copy Project URL + anon key into
-   `.env.local` (start from `.env.example`).
+   `.env.local` (start from `.env.example`). Leave the keys blank to run the
+   in-browser sample territory with no backend.
 4. **Auth settings** (Supabase → Authentication):
    - URL Configuration → set Site URL to your deployed URL (or `http://localhost:3000`),
      and add it to Redirect URLs — magic links land on `/auth/callback`.
@@ -31,10 +34,15 @@ Production rebuild of the validated single-file prototype (`PanePilot-Cloud`).
 
 ```
 npm install
-npm run dev        # http://localhost:3000
+npm run dev        # http://localhost:3000 — Try sample territory works with no .env
 npm test           # scoring engine unit tests (vitest)
 npm run build      # production build
 ```
+
+**Sample territory** (`/demo`): 28 scored Cincinnati buildings, the ranked
+candidates list, follow-up cadence, portfolios, map, and proposals — no account
+and no county file. Pipeline edits stay in this browser. Signed-in empty
+workspaces can load the same sample from Data.
 
 ## Deploy (Vercel)
 

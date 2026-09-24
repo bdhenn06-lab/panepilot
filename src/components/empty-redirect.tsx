@@ -7,7 +7,8 @@ export function EmptyRedirect() {
     <div>
       <p className="text-base font-semibold mb-1.5">No territory loaded yet</p>
       <p className="text-[13px] text-ink2 mb-3">
-        Import your county parcel CSV first — the whole team then shares the scored territory.
+        Import your county parcel file, or load the sample Cincinnati territory from Data, and the
+        whole team shares the scored list.
       </p>
       <Link href="/import">
         <Button>Go to Data</Button>

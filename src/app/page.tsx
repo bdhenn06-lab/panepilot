@@ -1,14 +1,17 @@
 import Link from 'next/link';
 import { redirect } from 'next/navigation';
 import { createClient } from '@/lib/supabase/server';
+import { hasSupabaseEnv } from '@/lib/supabase/env';
 import { IconWind } from '@/components/icons';
 
 export default async function Home() {
-  const supabase = await createClient();
-  const {
-    data: { user },
-  } = await supabase.auth.getUser();
-  if (user) redirect('/dashboard');
+  if (hasSupabaseEnv()) {
+    const supabase = await createClient();
+    const {
+      data: { user },
+    } = await supabase.auth.getUser();
+    if (user) redirect('/dashboard');
+  }
 
   return (
     <main className="flex-1 grid place-items-center p-6">
@@ -21,20 +24,35 @@ export default async function Home() {
           Customer acquisition OS for commercial window cleaning. Turn county parcel records into a
           scored, routed, follow-up-driven pipeline.
         </p>
-        <div className="flex gap-3 justify-center mt-6">
+        <div className="flex gap-3 justify-center mt-6 flex-wrap">
           <Link
-            href="/signup"
+            href="/demo"
             className="h-10 rounded-lg px-5 bg-accent text-white text-[13px] font-semibold inline-flex items-center hover:bg-accent-dark"
           >
-            Create account
+            Try sample territory
           </Link>
-          <Link
-            href="/login"
-            className="h-10 rounded-lg px-5 border border-line2 bg-panel text-[13px] text-ink2 inline-flex items-center hover:bg-soft"
-          >
-            Sign in
-          </Link>
+          {hasSupabaseEnv() && (
+            <>
+              <Link
+                href="/signup"
+                className="h-10 rounded-lg px-5 border border-line2 bg-panel text-[13px] text-ink2 inline-flex items-center hover:bg-soft"
+              >
+                Create account
+              </Link>
+              <Link
+                href="/login"
+                className="h-10 rounded-lg px-5 border border-line2 bg-panel text-[13px] text-ink2 inline-flex items-center hover:bg-soft"
+              >
+                Sign in
+              </Link>
+            </>
+          )}
         </div>
+        {!hasSupabaseEnv() && (
+          <p className="text-xs text-ink3 mt-4">
+            No backend configured — the sample territory runs entirely in this browser.
+          </p>
+        )}
       </div>
     </main>
   );

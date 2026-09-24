@@ -31,6 +31,8 @@ export default function ForgotPasswordPage() {
     <AuthCard subtitle="Reset your password">
       <form onSubmit={sendReset} className="flex flex-col gap-2">
         <Input
+          id="email"
+          name="email"
           type="email"
           placeholder="Email"
           autoComplete="email"

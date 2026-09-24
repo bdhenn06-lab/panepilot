@@ -39,7 +39,7 @@ export default function MapPage() {
   );
 
   async function geocodeMissing() {
-    if (!missingCoords.length) return;
+    if (!missingCoords.length || ws.isDemo) return;
     setGeocoding(true);
     const supabase = createClient();
     const state = ws.settings.regionState || '';

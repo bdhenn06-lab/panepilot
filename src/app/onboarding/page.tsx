@@ -45,6 +45,8 @@ export default function OnboardingPage() {
       </p>
       <form onSubmit={createOrg} className="flex flex-col gap-2">
         <Input
+          id="company"
+          name="company"
           placeholder="Company name (e.g. Whiteline Window Washing)"
           value={name}
           onChange={(e) => setName(e.target.value)}

@@ -6,6 +6,7 @@ import { useRouter, useSearchParams } from 'next/navigation';
 import { createClient } from '@/lib/supabase/client';
 import { AuthCard } from '@/components/auth-card';
 import { Button, Callout, Input } from '@/components/ui';
+import { authErrorMessage } from '@/lib/auth-errors';
 
 function LoginForm() {
   const router = useRouter();
@@ -23,7 +24,7 @@ function LoginForm() {
     const supabase = createClient();
     const { error } = await supabase.auth.signInWithPassword({ email: email.trim(), password });
     setBusy(false);
-    if (error) return setMsg({ tone: 'bad', text: error.message });
+    if (error) return setMsg({ tone: 'bad', text: authErrorMessage(error.message) });
     router.push(next);
     router.refresh();
   }
@@ -38,7 +39,7 @@ function LoginForm() {
       options: { emailRedirectTo: `${location.origin}/auth/callback?next=${encodeURIComponent(next)}` },
     });
     setBusy(false);
-    if (error) return setMsg({ tone: 'bad', text: error.message });
+    if (error) return setMsg({ tone: 'bad', text: authErrorMessage(error.message) });
     setMsg({ tone: 'ok', text: 'Magic link sent — check your inbox and open it on this device.' });
   }
 
@@ -46,6 +47,8 @@ function LoginForm() {
     <AuthCard subtitle="Team sign-in">
       <form onSubmit={signIn} className="flex flex-col gap-2">
         <Input
+          id="email"
+          name="email"
           type="email"
           placeholder="Email"
           autoComplete="email"
@@ -54,6 +57,8 @@ function LoginForm() {
           required
         />
         <Input
+          id="password"
+          name="password"
           type="password"
           placeholder="Password"
           autoComplete="current-password"
@@ -83,6 +88,10 @@ function LoginForm() {
         {' · '}
         <Link className="text-accent-dark font-medium" href="/forgot-password">
           Forgot password?
+        </Link>
+        {' · '}
+        <Link className="text-accent-dark font-medium" href="/demo">
+          Try sample
         </Link>
       </p>
     </AuthCard>

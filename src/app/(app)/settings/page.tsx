@@ -146,6 +146,27 @@ function ServiceModeBlock({
 
 function TeamSection() {
   const ws = useWorkspace();
+  if (ws.isDemo) {
+    return (
+      <Card className="mb-3">
+        <p className="font-semibold mb-1.5 flex items-center gap-1.5">
+          <IconUsers /> Team
+        </p>
+        <p className="text-xs text-ink2">
+          Invites need a saved workspace.{' '}
+          <a href="/signup" className="text-accent-dark font-medium">
+            Create an account
+          </a>{' '}
+          to share a territory with your crew.
+        </p>
+      </Card>
+    );
+  }
+  return <LiveTeamSection />;
+}
+
+function LiveTeamSection() {
+  const ws = useWorkspace();
   const toast = useToast();
   const supabase = createClient();
   const [invites, setInvites] = useState<OrgInviteRow[]>([]);

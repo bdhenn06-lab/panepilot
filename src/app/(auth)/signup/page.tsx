@@ -6,6 +6,7 @@ import { useRouter } from 'next/navigation';
 import { createClient } from '@/lib/supabase/client';
 import { AuthCard } from '@/components/auth-card';
 import { Button, Callout, Input } from '@/components/ui';
+import { authErrorMessage } from '@/lib/auth-errors';
 
 export default function SignupPage() {
   const router = useRouter();
@@ -25,7 +26,7 @@ export default function SignupPage() {
       options: { emailRedirectTo: `${location.origin}/auth/callback?next=/onboarding` },
     });
     setBusy(false);
-    if (error) return setMsg({ tone: 'bad', text: error.message });
+    if (error) return setMsg({ tone: 'bad', text: authErrorMessage(error.message) });
     if (data.session) {
       router.push('/onboarding');
       router.refresh();
@@ -41,6 +42,8 @@ export default function SignupPage() {
     <AuthCard subtitle="Create your account">
       <form onSubmit={signUp} className="flex flex-col gap-2">
         <Input
+          id="email"
+          name="email"
           type="email"
           placeholder="Email"
           autoComplete="email"
@@ -49,6 +52,8 @@ export default function SignupPage() {
           required
         />
         <Input
+          id="password"
+          name="password"
           type="password"
           placeholder="Password (8+ characters)"
           autoComplete="new-password"
@@ -66,6 +71,10 @@ export default function SignupPage() {
         Already have an account?{' '}
         <Link className="text-accent-dark font-medium" href="/login">
           Sign in
+        </Link>
+        {' · '}
+        <Link className="text-accent-dark font-medium" href="/demo">
+          Try the sample territory
         </Link>
       </p>
     </AuthCard>

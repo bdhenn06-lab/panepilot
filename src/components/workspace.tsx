@@ -61,7 +61,7 @@ export interface ScoredParcel {
   thesis: JobThesis;
 }
 
-interface WorkspaceValue {
+export interface WorkspaceValue {
   loading: boolean;
   loadError: string;
   orgId: string;
@@ -83,6 +83,8 @@ interface WorkspaceValue {
   /** Route stops as parcel ids, persisted per org. */
   route: number[];
   dueCount: number;
+  /** True when this browser is on the no-account sample territory. */
+  isDemo: boolean;
   refresh: () => Promise<void>;
   saveSettings: (s: ScoringSettings) => void;
   setState: (parcelId: number, patch: Partial<ProspectState>) => void;
@@ -98,7 +100,7 @@ interface WorkspaceValue {
   signOut: () => Promise<void>;
 }
 
-const WorkspaceContext = createContext<WorkspaceValue | null>(null);
+export const WorkspaceContext = createContext<WorkspaceValue | null>(null);
 
 export function useWorkspace(): WorkspaceValue {
   const v = useContext(WorkspaceContext);
@@ -192,8 +194,10 @@ export function WorkspaceProvider({
         .from('job_outcomes')
         .select('*')
         .eq('org_id', orgId);
-      if (outcomeErr) throw outcomeErr;
-      setOutcomes((outcomeRows ?? []) as JobOutcomeRow[]);
+      // Migration 0007 is easy to miss (README used to only mention 0001). A
+      // missing table must not take down the scored territory.
+      if (!outcomeErr) setOutcomes((outcomeRows ?? []) as JobOutcomeRow[]);
+      else setOutcomes([]);
     } catch (e) {
       setLoadError(e instanceof Error ? e.message : String(e));
     } finally {
@@ -482,6 +486,7 @@ export function WorkspaceProvider({
     stateOf,
     route,
     dueCount,
+    isDemo: false,
     refresh,
     saveSettings,
     setState,

@@ -1,7 +1,8 @@
 'use client';
 
 import Papa from 'papaparse';
-import { useRef, useState } from 'react';
+import { useMemo, useRef, useState } from 'react';
+import Link from 'next/link';
 import { useRouter } from 'next/navigation';
 import { createClient } from '@/lib/supabase/client';
 import { useWorkspace } from '@/components/workspace';
@@ -11,6 +12,7 @@ import { IconTrash, IconUpload } from '@/components/icons';
 import { Loading } from '@/components/loading';
 import { CountyPicker } from '@/components/county-picker';
 import { remapPipeline, snapshotPipeline, type PipelineSnapshot } from '@/lib/carryover';
+import { sampleParcels } from '@/lib/sample-territory';
 import type { TablesInsert } from '@/lib/db/database.types';
 import {
   IMPORT_FIELDS,
@@ -39,7 +41,7 @@ export default function ImportPage() {
   const ws = useWorkspace();
   const toast = useToast();
   const router = useRouter();
-  const supabase = createClient();
+  const supabase = useMemo(() => (ws.isDemo ? null : createClient()), [ws.isDemo]);
   const fileRef = useRef<HTMLInputElement>(null);
   const [file, setFile] = useState<File | null>(null);
   const [headers, setHeaders] = useState<string[]>([]);
@@ -84,6 +86,7 @@ export default function ImportPage() {
     snapshot: PipelineSnapshot,
     newIdByParcelNumber: Map<string, number>,
   ): Promise<number> {
+    if (!supabase) return 0;
     const { states, routeIds } = remapPipeline(snapshot, newIdByParcelNumber);
     for (let i = 0; i < states.length; i += BATCH) {
       const rows = states.slice(i, i + BATCH).map(({ parcelId, state }) => ({
@@ -137,6 +140,7 @@ export default function ImportPage() {
     // be inferred from the data — but a catalogued county already knows it.
     const regionState = detected?.regionState || fallbackState || '';
     if (!detected && !regionState) return '';
+    if (!supabase) return '';
 
     const { error: setErr } = await supabase
       .from('org_settings')
@@ -162,6 +166,10 @@ export default function ImportPage() {
     sourceLabel: string,
     fallbackState?: string,
   ) {
+    if (!supabase) {
+      setError('Sign up to import a county into a saved workspace.');
+      return;
+    }
     if (!rows.length) {
       setError(`No ${targetLabel} rows with an address were found. Check the mapping or source.`);
       return;
@@ -292,6 +300,7 @@ export default function ImportPage() {
   }
 
   async function clearWorkspace() {
+    if (!supabase) return;
     if (
       !confirm(
         'Delete all parcels AND all team statuses/notes for this workspace? This cannot be undone.',
@@ -309,6 +318,14 @@ export default function ImportPage() {
 
   const isAdmin = ws.role !== 'member';
 
+  async function loadSample() {
+    const rows = sampleParcels(ws.orgId).map((row) => {
+      const { id, ...rest } = row;
+      return { ...rest, org_id: ws.orgId, parcel_number: rest.parcel_number ?? `SAMPLE-${id}` };
+    });
+    await commitRows(rows, 'Sample Cincinnati territory', 'OH');
+  }
+
   return (
     <div className="max-w-[900px]">
       <PageHead
@@ -320,7 +337,18 @@ export default function ImportPage() {
         }
       />
 
-      {hasExisting && !file && (
+      {ws.isDemo && (
+        <Callout tone="ok">
+          <b>{formatNum(ws.parcels.length)} sample commercial parcels</b> — Cincinnati metro,
+          scored in this browser. Create an account to import your own county and keep the
+          pipeline.{' '}
+          <Link href="/signup" className="text-accent-dark font-medium">
+            Create account
+          </Link>
+        </Callout>
+      )}
+
+      {hasExisting && !file && !ws.isDemo && (
         <>
           <Callout tone="ok">
             <b>
@@ -340,7 +368,19 @@ export default function ImportPage() {
         </>
       )}
 
-      {!file && (!hasExisting || isAdmin) && (
+      {!ws.isDemo && !hasExisting && isAdmin && (
+        <Card className="mb-3">
+          <p className="font-semibold text-[13px] mb-1">Try it on a sample first</p>
+          <p className="text-[12.5px] text-ink2 mb-3">
+            28 scored Cincinnati buildings, ready to call — no county file required.
+          </p>
+          <Button disabled={busy} onClick={() => void loadSample()}>
+            Load sample Cincinnati territory
+          </Button>
+        </Card>
+      )}
+
+      {!file && (!hasExisting || isAdmin) && !ws.isDemo && (
         <CountyPicker
           mode={isResidentialOrg ? 'residential' : 'commercial'}
           orgId={ws.orgId}
@@ -349,7 +389,7 @@ export default function ImportPage() {
         />
       )}
 
-      {!file && (!hasExisting || isAdmin) && (
+      {!file && (!hasExisting || isAdmin) && !ws.isDemo && (
         <p className="text-[12.5px] text-ink2 mb-2 mt-4">
           <b>Or upload a CSV.</b> Use this when your county isn&apos;t reachable above, or when you
           have a richer export (a prepared file with building sizes beats most public services).
@@ -357,7 +397,7 @@ export default function ImportPage() {
         </p>
       )}
 
-      {!file && (!hasExisting || isAdmin) && (
+      {!file && (!hasExisting || isAdmin) && !ws.isDemo && (
         <div
           className={`mt-3 border-2 border-dashed rounded-xl p-7 text-center text-ink2 cursor-pointer ${
             hot ? 'border-accent bg-accent-soft' : 'border-line2'
@@ -497,7 +537,7 @@ export default function ImportPage() {
         </Card>
       )}
 
-      {hasExisting && !file && isAdmin && (
+      {hasExisting && !file && isAdmin && !ws.isDemo && (
         <Ghost className="mt-4" onClick={() => void clearWorkspace()}>
           <IconTrash />
           Clear workspace entirely
