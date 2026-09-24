@@ -20,6 +20,6 @@ jobs:
           node-version: 24
           cache: npm
       - run: npm ci
-      - run: npx eslint src
+      - run: npm run lint
       - run: npx vitest run
       - run: npm run build
