@@ -36,6 +36,20 @@ npm test           # scoring engine unit tests (vitest)
 npm run build      # production build
 ```
 
+### Demo seed data (local Supabase)
+
+When you run the stack against a local Supabase (`supabase start`, or `supabase
+db reset`), `supabase/seed.sql` loads a ready-to-explore workspace so you can
+skip signup + import:
+
+- **Login:** `demo@panepilot.test` / `panepilot`
+- Org "Cincinnati Shine Co" with 10 commercial parcels already scored, a
+  partially-worked pipeline (Sequencing/Meeting/Proposal/Won), and one closed
+  job feeding the calibration loop.
+
+Seeds run only locally — Supabase never applies `seed.sql` to a hosted project.
+(Cloud Agent environments start a local Supabase and pick this up automatically.)
+
 ## Deploy (Vercel)
 
 **Recommended — GitHub + Vercel (gives auto-deploy on push, and runs the CI workflow):**
