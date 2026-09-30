@@ -132,8 +132,11 @@ begin
     values (res_org, 'Queen City Home Shine', 'trial')
     on conflict (id) do nothing;
 
-  insert into public.org_members (org_id, user_id, role)
-    values (res_org, residential_user, 'owner')
+  -- `demo` also belongs here (admin) so a single login shows the org switcher
+  -- and can flip between the commercial and residential workspaces.
+  insert into public.org_members (org_id, user_id, role) values
+    (res_org, residential_user, 'owner'),
+    (res_org, demo_user, 'admin')
     on conflict do nothing;
 
   insert into public.org_settings (

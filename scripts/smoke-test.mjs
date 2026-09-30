@@ -56,14 +56,16 @@ async function main() {
   check('demo user signs in with password', !signIn.error && !!signIn.data.session, signIn.error?.message);
 
   // 3. Authenticated user reads their seeded org data -----------------------
-  const membership = await user.from('org_members').select('org_id, role').limit(1).single();
-  check('authenticated user has an org membership', !membership.error && !!membership.data?.org_id, membership.error?.message);
-  const orgId = membership.data.org_id;
+  // The demo user may belong to more than one workspace; RLS scopes every read
+  // to the user's orgs, so select without an org filter and let policy do it.
+  const memberships = await user.from('org_members').select('org_id');
+  check('authenticated user has an org membership', !memberships.error && (memberships.data?.length ?? 0) >= 1, memberships.error?.message);
+  const orgId = memberships.data[0].org_id;
 
-  const parcels = await user.from('parcels').select('id').eq('org_id', orgId);
+  const parcels = await user.from('parcels').select('id');
   check('seeded parcels are visible to the member', !parcels.error && (parcels.data?.length ?? 0) >= 10, `got ${parcels.data?.length ?? 'error'}`);
 
-  const pipeline = await user.from('prospect_state').select('parcel_id').eq('org_id', orgId);
+  const pipeline = await user.from('prospect_state').select('parcel_id');
   check('seeded pipeline state is visible', !pipeline.error && (pipeline.data?.length ?? 0) >= 1, `got ${pipeline.data?.length ?? 'error'}`);
 
   // 4. Import write path: insert a parcel, read it back, clean up ------------

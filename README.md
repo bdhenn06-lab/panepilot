@@ -42,11 +42,14 @@ When you run the stack against a local Supabase (`supabase start`, or `supabase
 db reset`), `supabase/seed.sql` loads ready-to-explore workspaces so you can skip
 signup + import. All logins use the password `panepilot`:
 
-| Login | Role | Workspace | Mode |
+| Login | Role | Workspace(s) | Mode |
 | --- | --- | --- | --- |
-| `demo@panepilot.test` | owner | Cincinnati Shine Co | commercial |
+| `demo@panepilot.test` | owner / admin | Cincinnati Shine Co **and** Queen City Home Shine | both |
 | `teammate@panepilot.test` | admin | Cincinnati Shine Co (same org) | commercial |
 | `residential@panepilot.test` | owner | Queen City Home Shine | residential |
+
+`demo@` belongs to both workspaces, so its header shows the **workspace switcher** — flip
+between the commercial and residential territories (and create a new workspace) there.
 
 - **Cincinnati Shine Co** — 10 commercial parcels already scored, a
   partially-worked pipeline (Sequencing/Meeting/Proposal/Won), a closed job
