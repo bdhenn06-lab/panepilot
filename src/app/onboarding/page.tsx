@@ -1,13 +1,12 @@
 'use client';
 
 import { useRef, useState } from 'react';
-import { useRouter } from 'next/navigation';
 import { createClient } from '@/lib/supabase/client';
+import { switchOrg } from '@/lib/org-actions';
 import { AuthCard } from '@/components/auth-card';
 import { Button, Callout, Input } from '@/components/ui';
 
 export default function OnboardingPage() {
-  const router = useRouter();
   const [name, setName] = useState('');
   const [err, setErr] = useState('');
   const [busy, setBusy] = useState(false);
@@ -23,7 +22,7 @@ export default function OnboardingPage() {
     setBusy(true);
     setErr('');
     const supabase = createClient();
-    const { error } = await supabase.rpc('create_org', {
+    const { data: newOrgId, error } = await supabase.rpc('create_org', {
       org_name: name.trim(),
       company: name.trim(),
     });
@@ -32,9 +31,10 @@ export default function OnboardingPage() {
       setBusy(false);
       return setErr(error.message);
     }
-    // Stay locked on success — we're navigating away.
-    router.push('/dashboard');
-    router.refresh();
+    // Stay locked on success — switchOrg makes the new workspace active (so
+    // users who already had one land here, not back in their oldest org) and
+    // redirects to the dashboard.
+    await switchOrg(newOrgId as string);
   }
 
   return (

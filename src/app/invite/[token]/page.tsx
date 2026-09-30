@@ -2,8 +2,8 @@
 
 import Link from 'next/link';
 import { use, useEffect, useState } from 'react';
-import { useRouter } from 'next/navigation';
 import { createClient } from '@/lib/supabase/client';
+import { switchOrg } from '@/lib/org-actions';
 import { AuthCard } from '@/components/auth-card';
 import { Button, Callout } from '@/components/ui';
 
@@ -15,7 +15,6 @@ interface Preview {
 
 export default function InvitePage({ params }: { params: Promise<{ token: string }> }) {
   const { token } = use(params);
-  const router = useRouter();
   const [preview, setPreview] = useState<Preview | null | 'missing'>(null);
   const [authed, setAuthed] = useState<boolean | null>(null);
   const [err, setErr] = useState('');
@@ -36,11 +35,13 @@ export default function InvitePage({ params }: { params: Promise<{ token: string
     setBusy(true);
     setErr('');
     const supabase = createClient();
-    const { error } = await supabase.rpc('accept_invite', { invite_token: token });
-    setBusy(false);
-    if (error) return setErr(error.message);
-    router.push('/dashboard');
-    router.refresh();
+    const { data: joinedOrgId, error } = await supabase.rpc('accept_invite', { invite_token: token });
+    if (error) {
+      setBusy(false);
+      return setErr(error.message);
+    }
+    // Land in the workspace you just joined, not your oldest one.
+    await switchOrg(joinedOrgId as string);
   }
 
   const nextUrl = `/invite/${token}`;
