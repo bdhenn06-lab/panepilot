@@ -3,6 +3,7 @@
 import Link from 'next/link';
 import { usePathname } from 'next/navigation';
 import { useWorkspace } from '@/components/workspace';
+import { OrgSwitcher, type OrgOption } from '@/components/org-switcher';
 import {
   IconBuilding,
   IconClock,
@@ -34,7 +35,15 @@ const TABS = [
   { href: '/settings', label: 'Settings', Icon: IconSliders },
 ];
 
-export function AppShell({ orgName, children }: { orgName: string; children: React.ReactNode }) {
+export function AppShell({
+  orgs,
+  activeOrgId,
+  children,
+}: {
+  orgs: OrgOption[];
+  activeOrgId: string;
+  children: React.ReactNode;
+}) {
   const pathname = usePathname();
   const { userEmail, dueCount, signOut } = useWorkspace();
 
@@ -46,13 +55,11 @@ export function AppShell({ orgName, children }: { orgName: string; children: Rea
           <div className="w-8 h-8 rounded-lg bg-accent text-white grid place-items-center shrink-0">
             <IconWind />
           </div>
-          <div className="min-w-0">
+          <div className="min-w-0 flex-1">
             <div className="font-semibold text-[14.5px] leading-tight tracking-tight">
               PanePilot
             </div>
-            <div className="text-[11px] text-ink3 truncate" title={orgName}>
-              {orgName}
-            </div>
+            <OrgSwitcher orgs={orgs} activeOrgId={activeOrgId} />
           </div>
         </div>
 
@@ -103,7 +110,7 @@ export function AppShell({ orgName, children }: { orgName: string; children: Rea
         </div>
         <div className="min-w-0 flex-1">
           <div className="font-semibold text-[13.5px] leading-tight">PanePilot</div>
-          <div className="text-[10.5px] text-ink3 truncate">{orgName}</div>
+          <OrgSwitcher orgs={orgs} activeOrgId={activeOrgId} compact />
         </div>
         <button
           onClick={() => void signOut()}
