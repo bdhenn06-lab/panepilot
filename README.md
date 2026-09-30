@@ -39,16 +39,32 @@ npm run build      # production build
 ### Demo seed data (local Supabase)
 
 When you run the stack against a local Supabase (`supabase start`, or `supabase
-db reset`), `supabase/seed.sql` loads a ready-to-explore workspace so you can
-skip signup + import:
+db reset`), `supabase/seed.sql` loads ready-to-explore workspaces so you can skip
+signup + import. All logins use the password `panepilot`:
 
-- **Login:** `demo@panepilot.test` / `panepilot`
-- Org "Cincinnati Shine Co" with 10 commercial parcels already scored, a
-  partially-worked pipeline (Sequencing/Meeting/Proposal/Won), and one closed
-  job feeding the calibration loop.
+| Login | Role | Workspace | Mode |
+| --- | --- | --- | --- |
+| `demo@panepilot.test` | owner | Cincinnati Shine Co | commercial |
+| `teammate@panepilot.test` | admin | Cincinnati Shine Co (same org) | commercial |
+| `residential@panepilot.test` | owner | Queen City Home Shine | residential |
+
+- **Cincinnati Shine Co** — 10 commercial parcels already scored, a
+  partially-worked pipeline (Sequencing/Meeting/Proposal/Won), a closed job
+  feeding the calibration loop, and a shared downtown route. `demo` and
+  `teammate` share it, so opening both in two browsers shows realtime team sync.
+- **Queen City Home Shine** — 8 single-family homes priced with the residential
+  per-window model, plus a Hyde Park / Mt Lookout route.
 
 Seeds run only locally — Supabase never applies `seed.sql` to a hosted project.
 (Cloud Agent environments start a local Supabase and pick this up automatically.)
+
+### Smoke test (real backend)
+
+`npm run smoke` runs `scripts/smoke-test.mjs` against a running Supabase stack —
+it checks anonymous RLS, password auth, seeded-data reads, and the parcels write
+path the CSV import uses. It expects the seed above and reads `SUPABASE_URL` /
+`SUPABASE_ANON_KEY` (defaulting to the local stack). CI runs it against a real
+Supabase started in the workflow; the unit tests (`npm test`) stay backend-free.
 
 ## Deploy (Vercel)
 
