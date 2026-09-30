@@ -23,3 +23,29 @@ jobs:
       - run: npx eslint src
       - run: npx vitest run
       - run: npm run build
+
+  # End-to-end smoke test against a real Supabase local stack: applies the
+  # migrations + seed, then exercises auth, RLS, and the parcels write path.
+  smoke:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 24
+          cache: npm
+      - run: npm ci
+      - uses: supabase/setup-cli@v1
+        with:
+          version: latest
+      - name: Start Supabase (applies migrations + seed)
+        run: supabase start
+      - name: Run smoke test
+        run: |
+          SUPABASE_URL="$(supabase status -o json | jq -r '.API_URL')"
+          SUPABASE_ANON_KEY="$(supabase status -o json | jq -r '.ANON_KEY')"
+          export SUPABASE_URL SUPABASE_ANON_KEY
+          npm run smoke
+      - name: Stop Supabase
+        if: always()
+        run: supabase stop
