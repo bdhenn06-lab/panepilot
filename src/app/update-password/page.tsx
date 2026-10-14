@@ -1,6 +1,7 @@
 'use client';
 
-import { useState } from 'react';
+import Link from 'next/link';
+import { useEffect, useState } from 'react';
 import { useRouter } from 'next/navigation';
 import { createClient } from '@/lib/supabase/client';
 import { AuthCard } from '@/components/auth-card';
@@ -17,6 +18,13 @@ export default function UpdatePasswordPage() {
   const [confirm, setConfirm] = useState('');
   const [msg, setMsg] = useState<{ tone: 'ok' | 'bad'; text: string } | null>(null);
   const [busy, setBusy] = useState(false);
+  const [sessionState, setSessionState] = useState<'loading' | 'ready' | 'missing'>('loading');
+
+  useEffect(() => {
+    void createClient().auth.getUser().then(({ data, error }) => {
+      setSessionState(!error && data.user ? 'ready' : 'missing');
+    }).catch(() => setSessionState('missing'));
+  }, []);
 
   async function save(e: React.FormEvent) {
     e.preventDefault();
@@ -34,6 +42,12 @@ export default function UpdatePasswordPage() {
 
   return (
     <AuthCard subtitle="Set a new password">
+      {sessionState === 'loading' && <p>Checking your reset link…</p>}
+      {sessionState === 'missing' && <>
+        <Callout tone="bad">Open a fresh password-reset email link in the same browser where you requested it. Your reset session is missing or expired.</Callout>
+        <Link className="text-accent-dark font-medium mt-3 block" href="/forgot-password">Request a new reset link</Link>
+      </>}
+      {sessionState === 'ready' &&
       <form onSubmit={save} className="flex flex-col gap-2">
         <Input
           type="password"
@@ -56,7 +70,7 @@ export default function UpdatePasswordPage() {
         <Button type="submit" disabled={busy}>
           Update password
         </Button>
-      </form>
+      </form>}
       {msg && <Callout tone={msg.tone}>{msg.text}</Callout>}
     </AuthCard>
   );

@@ -32,6 +32,10 @@ function eventRequest() { return new Request('https://example.test/api/stripe/we
   method: 'POST', headers: { 'stripe-signature': 'test' }, body: '{}',
 }); }
 describe('service authentication', () => {
+  it('lets recovery pages explain a missing session instead of redirecting to login', async () => {
+    expect((await proxy(new NextRequest('https://example.test/update-password'))).status).toBe(200);
+    expect((await proxy(new NextRequest('https://example.test/auth/callback?code=test'))).status).toBe(200);
+  });
   it.each(['/api/stripe/webhook', '/api/reminders'])('allows %s to reach its own authentication', async (path) => {
     const response = await proxy(new NextRequest(`https://example.test${path}`));
     expect(response.status).toBe(200); expect(response.headers.get('location')).toBeNull();

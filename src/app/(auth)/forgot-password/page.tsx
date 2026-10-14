@@ -23,7 +23,7 @@ export default function ForgotPasswordPage() {
     if (error) return setMsg({ tone: 'bad', text: error.message });
     setMsg({
       tone: 'ok',
-      text: 'Reset link sent — open it on this device and you can set a new password.',
+      text: 'If an account exists for this email, a reset link has been requested. Open the newest email link in this same browser to set a new password.',
     });
   }
 
