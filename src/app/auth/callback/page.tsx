@@ -22,9 +22,15 @@ export default function AuthCallbackPage() {
           (!url.searchParams.has('code') && !fragment.has('access_token'))) {
           throw new Error('Missing or expired link');
         }
-        // Browser initialization handles both PKCE codes and legacy token fragments.
-        // Do not exchange the code a second time: recovery codes are single-use.
-        const { data, error } = await createClient().auth.getSession();
+        // Disable automatic exchange so a single-use code is consumed exactly once.
+        const auth = createClient(false).auth;
+        const code = url.searchParams.get('code');
+        const { data, error } = code
+          ? await auth.exchangeCodeForSession(code)
+          : await auth.setSession({
+            access_token: fragment.get('access_token') ?? '',
+            refresh_token: fragment.get('refresh_token') ?? '',
+          });
         if (error || !data.session) throw error ?? new Error('Session unavailable');
         window.history.replaceState(null, '', '/auth/callback');
         window.location.replace(destination);
