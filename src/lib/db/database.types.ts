@@ -1,5 +1,5 @@
-// Generated from the live schema via the Supabase Management API. Do not edit by
-// hand; regenerate after schema changes. Reflects migrations 0001-0007.
+// Generated base schema with explicit migration 0008-0009 additions.
+// Regenerate from the deployed schema after applying these migrations.
 
 export type Json =
   | string
@@ -17,6 +17,13 @@ export type Database = {
   }
   public: {
     Tables: {
+      billing_operations: {
+        Row: { org_id: string; lease_token: string | null; lease_until: string | null; checkout_session_id: string | null; last_event_created: number }
+        Insert: { org_id: string; checkout_session_id?: string | null }
+        Update: { checkout_session_id?: string | null }
+        Relationships: []
+      }
+
       job_outcomes: {
         Row: {
           actual_hours: number | null
@@ -24,6 +31,7 @@ export type Database = {
           closed_at: string
           created_by: string | null
           estimated_hours: number | null
+          baseline_version?: number | null
           estimated_price: number
           id: string
           land_use: string | null
@@ -37,6 +45,7 @@ export type Database = {
           closed_at?: string
           created_by?: string | null
           estimated_hours?: number | null
+          baseline_version?: number | null
           estimated_price: number
           id?: string
           land_use?: string | null
@@ -50,6 +59,7 @@ export type Database = {
           closed_at?: string
           created_by?: string | null
           estimated_hours?: number | null
+          baseline_version?: number | null
           estimated_price?: number
           id?: string
           land_use?: string | null
@@ -452,6 +462,13 @@ export type Database = {
       [_ in never]: never
     }
     Functions: {
+      begin_parcel_import: { Args: { target_org: string; row_count: number }; Returns: string }
+      append_parcel_import: { Args: { import_id: string; chunk_offset: number; rows: Json }; Returns: undefined }
+      commit_parcel_import: { Args: { import_id: string }; Returns: number }
+      patch_prospect: { Args: { target_org: string; target_parcel: number; patch: Json; expected_notes?: string }; Returns: Database['public']['Tables']['prospect_state']['Row'] }
+      claim_billing_checkout: { Args: { target_org: string }; Returns: string | null }
+      release_billing_checkout: { Args: { target_org: string; token: string; session_id?: string }; Returns: undefined }
+      apply_billing_event: { Args: { event_id: string; event_created: number; target_org: string; customer_id: string; subscription_id: string; new_plan: string }; Returns: undefined }
       accept_invite: { Args: { invite_token: string }; Returns: string }
       clear_org_parcels: { Args: { target_org: string }; Returns: undefined }
       create_invite: {

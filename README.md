@@ -32,7 +32,8 @@ Production rebuild of the validated single-file prototype (`PanePilot-Cloud`).
 ```
 npm install
 npm run dev        # http://localhost:3000
-npm test           # scoring engine unit tests (vitest)
+npm test           # unit and view tests (vitest)
+npm run test:database # isolated PostgreSQL migration/permission checks
 npm run build      # production build
 ```
 

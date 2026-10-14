@@ -1,4 +1,5 @@
 import { NextResponse } from 'next/server';
+import { allowedCountyUrl } from '@/lib/counties/safe-url';
 import { createClient } from '@/lib/supabase/server';
 import { guessColumns } from '@/lib/scoring';
 import type { CountyFieldMap } from '@/lib/counties/types';
@@ -41,8 +42,10 @@ interface Candidate {
 }
 
 async function getJson(url: string, timeoutMs = 12_000): Promise<Record<string, unknown> | null> {
+  if (!allowedCountyUrl(url)) return null;
   try {
     const res = await fetch(url, {
+      redirect: 'error',
       headers: { Accept: 'application/json' },
       signal: AbortSignal.timeout(timeoutMs),
     });

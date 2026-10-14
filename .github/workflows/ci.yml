@@ -22,6 +22,7 @@ jobs:
       - run: npm ci
       - run: npx eslint src
       - run: npx vitest run
+      - run: npm run test:database
       - run: npm run build
 
   # End-to-end smoke test against a real Supabase local stack: applies the

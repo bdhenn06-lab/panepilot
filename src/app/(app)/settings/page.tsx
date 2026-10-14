@@ -10,6 +10,7 @@ import { Loading } from '@/components/loading';
 import type { OrgInviteRow } from '@/lib/db/types';
 import { defaultsForMode, type ScoringSettings, type ServiceMode } from '@/lib/scoring';
 import { seatLimit, seatLimitLabel, seatsAvailable, type PlanId } from '@/lib/plans';
+import { BILLING_ENABLED } from '@/lib/billing';
 
 type FieldDef = [keyof ScoringSettings, string, string];
 
@@ -226,7 +227,7 @@ function TeamSection() {
         {used} of {seatLimitLabel(plan).toLowerCase()} used ({members.length} member
         {members.length === 1 ? '' : 's'}
         {invites.length ? `, ${invites.length} pending` : ''}) on the{' '}
-        <span className="capitalize">{plan}</span> plan. Everyone shares the same territory and
+        <span className="capitalize">{BILLING_ENABLED ? plan : 'free preview'}</span> plan. Everyone shares the same territory and
         pipeline.
       </p>
       {isAdmin ? (
@@ -250,8 +251,7 @@ function TeamSection() {
           </div>
           {full && (
             <p className="text-[11px] text-warn mt-1.5">
-              All {limit} seat{limit === 1 ? '' : 's'} on the {plan} plan are used. Upgrade in
-              Billing to invite more teammates.
+              All {limit} seat{limit === 1 ? '' : 's'} are used. {BILLING_ENABLED ? 'Upgrade in Billing to invite more teammates.' : 'Ask the PanePilot team if you need more preview seats.'}
             </p>
           )}
           {invites.length > 0 && (

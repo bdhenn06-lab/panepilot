@@ -1,26 +1,11 @@
 import type { Metadata, Viewport } from 'next';
-import { IBM_Plex_Mono, IBM_Plex_Sans } from 'next/font/google';
+import '@fontsource/ibm-plex-sans/latin-400.css';
+import '@fontsource/ibm-plex-sans/latin-500.css';
+import '@fontsource/ibm-plex-sans/latin-600.css';
+import '@fontsource/ibm-plex-sans/latin-700.css';
+import '@fontsource/ibm-plex-mono/latin-500.css';
+import '@fontsource/ibm-plex-mono/latin-600.css';
 import './globals.css';
-
-/**
- * IBM Plex — industrial/technical heritage that suits a field-service tool, and
- * more legible at small sizes than the system-font stack it replaces. The mono
- * cut carries every number the operator actually acts on (prices, scores,
- * counts), so figures line up in columns and read as data rather than prose.
- */
-const plexSans = IBM_Plex_Sans({
-  subsets: ['latin'],
-  weight: ['400', '500', '600', '700'],
-  variable: '--font-plex-sans',
-  display: 'swap',
-});
-
-const plexMono = IBM_Plex_Mono({
-  subsets: ['latin'],
-  weight: ['500', '600'],
-  variable: '--font-plex-mono',
-  display: 'swap',
-});
 
 export const metadata: Metadata = {
   title: 'PanePilot',
@@ -41,7 +26,7 @@ export default function RootLayout({
   return (
     <html
       lang="en"
-      className={`h-full antialiased ${plexSans.variable} ${plexMono.variable}`}
+      className="h-full antialiased"
     >
       <body className="min-h-full flex flex-col font-sans">{children}</body>
     </html>

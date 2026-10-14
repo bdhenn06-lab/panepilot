@@ -94,6 +94,7 @@ export interface ProspectStateRow {
 }
 
 export interface JobOutcomeRow {
+  baseline_version?: number | null;
   id: string;
   org_id: string;
   parcel_id: number | null;

@@ -8,6 +8,10 @@ function isPublic(pathname: string) {
 }
 
 export async function proxy(request: NextRequest) {
+  // These services authenticate signatures/tokens in their own handlers.
+  if (['/api/stripe/webhook', '/api/reminders'].includes(request.nextUrl.pathname)) {
+    return NextResponse.next();
+  }
   let response = NextResponse.next({ request });
 
   const supabase = createServerClient(
@@ -35,6 +39,9 @@ export async function proxy(request: NextRequest) {
   } = await supabase.auth.getUser();
 
   if (!user && !isPublic(request.nextUrl.pathname)) {
+    if (request.nextUrl.pathname.startsWith('/api/')) {
+      return NextResponse.json({ error: 'Not authenticated.' }, { status: 401 });
+    }
     const url = request.nextUrl.clone();
     url.pathname = '/login';
     url.searchParams.set('next', request.nextUrl.pathname);

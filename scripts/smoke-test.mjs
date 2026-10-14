@@ -60,7 +60,7 @@ async function main() {
   // to the user's orgs, so select without an org filter and let policy do it.
   const memberships = await user.from('org_members').select('org_id');
   check('authenticated user has an org membership', !memberships.error && (memberships.data?.length ?? 0) >= 1, memberships.error?.message);
-  const orgId = memberships.data[0].org_id;
+
 
   const parcels = await user.from('parcels').select('id');
   check('seeded parcels are visible to the member', !parcels.error && (parcels.data?.length ?? 0) >= 10, `got ${parcels.data?.length ?? 'error'}`);
@@ -68,33 +68,28 @@ async function main() {
   const pipeline = await user.from('prospect_state').select('parcel_id');
   check('seeded pipeline state is visible', !pipeline.error && (pipeline.data?.length ?? 0) >= 1, `got ${pipeline.data?.length ?? 'error'}`);
 
-  // 4. Import write path: insert a parcel, read it back, clean up ------------
+  // Disposable workspace: never replace the seeded team's territory.
   const marker = `SMOKE-${Date.now()}`;
-  const insert = await user
-    .from('parcels')
-    .insert({
-      org_id: orgId,
-      parcel_number: marker,
-      address: '1 Smoke Test Plaza',
-      city: 'Cincinnati',
-      zip: '45202',
-      owner_name: 'Smoke Test LLC',
-      owner_key: 'smoke test',
-      land_use: 'Office',
-      bldg_sqft: 50000,
-      stories: 3,
-      market_value: 2000000,
-      year_built: 2000,
-    })
-    .select('id')
-    .single();
-  check('authenticated user can insert a parcel (import write path)', !insert.error && !!insert.data?.id, insert.error?.message);
-
-  const readBack = await user.from('parcels').select('id, address').eq('parcel_number', marker).single();
-  check('inserted parcel reads back', !readBack.error && readBack.data?.address === '1 Smoke Test Plaza', readBack.error?.message);
-
-  const cleanup = await user.from('parcels').delete().eq('id', insert.data.id);
-  check('cleanup deletes the test parcel', !cleanup.error, cleanup.error?.message);
+  const org = await user.rpc('create_org', { org_name: marker });
+  check('creates isolated smoke workspace', !org.error && !!org.data, org.error?.message);
+  const orgId = org.data;
+  const started = await user.rpc('begin_parcel_import', {target_org: orgId, row_count: 1});
+  check('starts staged import', !started.error && !!started.data, started.error?.message);
+  const uploaded = await user.rpc('append_parcel_import', {
+    import_id: started.data, chunk_offset: 0,
+    rows: [{parcel_number: marker, address:'1 Smoke Test Plaza',city:'Cincinnati',zip:'45202',land_use:'Office',bldg_sqft:50000,stories:3}],
+  });
+  check('stages parcel', !uploaded.error, uploaded.error?.message);
+  const committed = await user.rpc('commit_parcel_import', {import_id: started.data});
+  check('commits import atomically', !committed.error && committed.data === 1, committed.error?.message);
+  const readBack = await user.from('parcels').select('id,address').eq('org_id',orgId).single();
+  check('parcel reads back', !readBack.error && readBack.data.address === '1 Smoke Test Plaza',readBack.error?.message);
+  const state = await user.rpc('patch_prospect', {target_org:orgId,target_parcel:readBack.data.id,patch:{notes:'Smoke note'},expected_notes:''});
+  check('pipeline patch succeeds',!state.error,state.error?.message);
+  const forbidden = await user.from('orgs').update({plan:'franchise'}).eq('id',orgId);
+  check('billing entitlement cannot be changed by owner',!!forbidden.error);
+  const cleanup = await user.rpc('clear_org_parcels',{target_org:orgId});
+  check('cleans up smoke parcels', !cleanup.error,cleanup.error?.message);
 
   console.log(`\nAll ${passed} smoke checks passed.`);
 }

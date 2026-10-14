@@ -20,7 +20,9 @@ import {
   useState,
 } from 'react';
 import { createClient } from '@/lib/supabase/client';
+import { outcomeBaseline } from '@/lib/scoring/estimate';
 import { parcelToInput, settingsFromRow, settingsToRow } from '@/lib/db/mappers';
+import type { Json } from '@/lib/db/database.types';
 import type {
   JobOutcomeRow,
   OrgRow,
@@ -85,7 +87,7 @@ interface WorkspaceValue {
   dueCount: number;
   refresh: () => Promise<void>;
   saveSettings: (s: ScoringSettings) => void;
-  setState: (parcelId: number, patch: Partial<ProspectState>) => void;
+  setState: (parcelId: number, patch: Partial<ProspectState>, expectedNotes?: string) => Promise<boolean>;
   markSent: (parcelId: number) => { touch: number; due: string } | null;
   /** Log what a job actually closed for, once won — feeds future estimates. */
   recordOutcome: (
@@ -132,6 +134,7 @@ export function WorkspaceProvider({
   const [outcomes, setOutcomes] = useState<JobOutcomeRow[]>([]);
   const [route, setRoute] = useState<number[]>([]);
   const routeIdRef = useRef<string | null>(null);
+  const stateWrites = useRef<Record<number, Promise<unknown>>>({});
   const timers = useRef<Record<string, ReturnType<typeof setTimeout>>>({});
 
   // No synchronous setState before the first await — the mount effect calls
@@ -262,7 +265,7 @@ export function WorkspaceProvider({
   const calibration: Calibration = useMemo(
     () =>
       computeCalibration(
-        outcomes.map((o) => ({
+        outcomes.filter((o) => o.baseline_version === 1 && o.service_mode === settings.serviceMode).map((o) => ({
           landUse: o.land_use,
           estimatedPrice: o.estimated_price,
           actualPrice: o.actual_price,
@@ -270,7 +273,7 @@ export function WorkspaceProvider({
           actualHours: o.actual_hours,
         })),
       ),
-    [outcomes],
+    [outcomes, settings.serviceMode],
   );
 
   // ---------- scoring (memoized over parcels + settings) ----------
@@ -312,27 +315,31 @@ export function WorkspaceProvider({
   }, []);
 
   const pushState = useCallback(
-    (parcelId: number, s: ProspectState) => {
-      debounce(`st-${parcelId}`, 400, () => {
-        void supabase
-          .from('prospect_state')
-          .upsert({
-            parcel_id: parcelId,
-            org_id: orgId,
-            status: s.status,
-            touch: s.touch,
-            last_touch: s.lastTouch || null,
-            due: s.due || null,
-            notes: s.notes,
-            updated_by: userId,
-            updated_at: new Date().toISOString(),
-          })
-          .then(({ error }) => {
-            if (error) setLoadError(`Sync error: ${error.message}`);
-          });
+    (parcelId: number, patch: Partial<ProspectState>, expectedNotes?: string): Promise<boolean> => {
+      const fields: Record<string, Json> = {};
+      if (patch.status !== undefined) fields.status = patch.status;
+      if (patch.touch !== undefined) fields.touch = patch.touch;
+      if (patch.lastTouch !== undefined) fields.last_touch = patch.lastTouch || null;
+      if (patch.due !== undefined) fields.due = patch.due || null;
+      if (patch.notes !== undefined) fields.notes = patch.notes;
+      const write = (stateWrites.current[parcelId] ?? Promise.resolve()).then(async () => {
+        const { error } = await supabase.rpc('patch_prospect', {
+          target_org: orgId, target_parcel: parcelId, patch: fields, expected_notes: expectedNotes,
+        });
+        if (error) {
+          setLoadError(`Sync error: ${error.message}`);
+          await load();
+          return false;
+        }
+        return true;
+      }).catch((error) => {
+        setLoadError(`Sync error: ${String(error)}`);
+        return false;
       });
+      stateWrites.current[parcelId] = write;
+      return write;
     },
-    [supabase, orgId, userId, debounce],
+    [supabase, orgId, load],
   );
 
   const stateOf = useCallback(
@@ -341,14 +348,12 @@ export function WorkspaceProvider({
   );
 
   const setState = useCallback(
-    (parcelId: number, patch: Partial<ProspectState>) => {
-      setStates((prev) => {
-        const next = { ...(prev[parcelId] ?? EMPTY_STATE), ...patch };
-        pushState(parcelId, next);
-        return { ...prev, [parcelId]: next };
-      });
+    (parcelId: number, patch: Partial<ProspectState>, expectedNotes?: string) => {
+      const originalNotes = expectedNotes ?? states[parcelId]?.notes ?? '';
+      setStates((prev) => ({ ...prev, [parcelId]: { ...(prev[parcelId] ?? EMPTY_STATE), ...patch } }));
+      return pushState(parcelId, patch, originalNotes);
     },
-    [pushState],
+    [pushState, states],
   );
 
   const markSent = useCallback(
@@ -357,7 +362,7 @@ export function WorkspaceProvider({
       const next = advanceTouch(current, todayISO());
       if (!next) return null;
       setStates((prev) => ({ ...prev, [parcelId]: next }));
-      pushState(parcelId, next);
+      void pushState(parcelId, { status: next.status, touch: next.touch, lastTouch: next.lastTouch, due: next.due });
       return { touch: next.touch, due: next.due };
     },
     [states, pushState],
@@ -372,22 +377,21 @@ export function WorkspaceProvider({
         parcel_id: parcelId,
         land_use: x.row.land_use,
         service_mode: settings.serviceMode,
-        estimated_price: x.est.pricePerClean,
+        ...outcomeBaseline(x.input, settings),
         actual_price: outcome.actualPrice,
-        estimated_hours: x.thesis.crewHoursLow,
         actual_hours: outcome.actualHours,
         created_by: userId,
       });
       if (error) {
         setLoadError(`Sync error: ${error.message}`);
-        return;
+        throw new Error(error.message);
       }
       // Refetch rather than append locally — the calibration math is meant to
       // run over the server's copy, and outcomes are rare writes.
       const { data } = await supabase.from('job_outcomes').select('*').eq('org_id', orgId);
       setOutcomes((data ?? []) as JobOutcomeRow[]);
     },
-    [supabase, orgId, userId, settings.serviceMode, byId],
+    [supabase, orgId, userId, settings, byId],
   );
 
   const saveSettings = useCallback(

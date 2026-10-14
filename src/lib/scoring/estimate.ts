@@ -9,6 +9,16 @@ interface Assumption {
   storiesAssumed: boolean;
 }
 
+/** Save raw model predictions; calibrated quotes must never become the next baseline. */
+export function outcomeBaseline(parcel: ParcelInput, settings: ScoringSettings) {
+  const raw = estimate(parcel, settings);
+  return {
+    estimated_price: raw.pricePerClean,
+    estimated_hours: settings.serviceMode === 'residential' ? raw.windows / 24 : raw.glassSqft / 800,
+    baseline_version: 1,
+  };
+}
+
 /** Commercial size assumptions: bigger buildings get more assumed floors. */
 function assumeCommercial(rawStories: number, rawSqft: number): Assumption {
   let stories = rawStories;

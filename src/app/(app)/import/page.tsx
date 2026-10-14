@@ -10,7 +10,7 @@ import { Button, Callout, Card, Ghost, PageHead } from '@/components/ui';
 import { IconTrash, IconUpload } from '@/components/icons';
 import { Loading } from '@/components/loading';
 import { CountyPicker } from '@/components/county-picker';
-import { remapPipeline, snapshotPipeline, type PipelineSnapshot } from '@/lib/carryover';
+import type { Json } from '@/lib/db/database.types';
 import type { TablesInsert } from '@/lib/db/database.types';
 import {
   IMPORT_FIELDS,
@@ -80,43 +80,6 @@ export default function ImportPage() {
     });
   }
 
-  async function restorePipeline(
-    snapshot: PipelineSnapshot,
-    newIdByParcelNumber: Map<string, number>,
-  ): Promise<number> {
-    const { states, routeIds } = remapPipeline(snapshot, newIdByParcelNumber);
-    for (let i = 0; i < states.length; i += BATCH) {
-      const rows = states.slice(i, i + BATCH).map(({ parcelId, state }) => ({
-        parcel_id: parcelId,
-        org_id: ws.orgId,
-        status: state.status,
-        touch: state.touch,
-        last_touch: state.lastTouch || null,
-        due: state.due || null,
-        notes: state.notes,
-        updated_by: ws.userId,
-        updated_at: new Date().toISOString(),
-      }));
-      const { error: upErr } = await supabase.from('prospect_state').upsert(rows);
-      if (upErr) throw new Error(`Restoring pipeline: ${upErr.message}`);
-    }
-    const { data: routeRow } = await supabase
-      .from('routes')
-      .select('id')
-      .eq('org_id', ws.orgId)
-      .limit(1)
-      .maybeSingle();
-    if (routeRow) {
-      await supabase
-        .from('routes')
-        .update({ stops: routeIds, updated_at: new Date().toISOString() })
-        .eq('id', routeRow.id);
-    } else if (routeIds.length) {
-      await supabase.from('routes').insert({ org_id: ws.orgId, stops: routeIds, created_by: ws.userId });
-    }
-    return states.length;
-  }
-
   /**
    * Fill in the workspace's market from the parcels just imported — the state
    * appended to addresses and the local-owner markers used by the buyer-signal
@@ -168,9 +131,9 @@ export default function ImportPage() {
     }
 
     // Carryover: snapshot the pipeline before touching anything.
-    const snapshot = hasExisting ? snapshotPipeline(ws.parcels, ws.states, ws.route) : null;
+
     if (hasExisting) {
-      const carried = snapshot!.states.size;
+      const carried = Object.values(ws.states).filter((state) => state.notes || state.status || state.touch).length;
       const hasParcelIds = rows.some((r) => r.parcel_number);
       const note = !hasParcelIds
         ? 'These rows carry no parcel IDs, so nothing can carry over — all statuses and notes will be lost.'
@@ -188,33 +151,21 @@ export default function ImportPage() {
     setBusy(true);
     setError('');
     try {
-      if (hasExisting) {
-        setProgress('Clearing previous dataset…');
-        const { error: rpcErr } = await supabase.rpc('clear_org_parcels', { target_org: ws.orgId });
-        if (rpcErr) throw new Error(rpcErr.message);
-      }
-
-      setProgress(`Uploading ${formatNum(rows.length)} parcels…`);
-      const newIdByParcelNumber = new Map<string, number>();
+      setProgress('Preparing a safe import…');
+      const { data: importId, error: beginError } = await supabase.rpc('begin_parcel_import', {
+        target_org: ws.orgId, row_count: rows.length,
+      });
+      if (beginError || !importId) throw new Error(beginError?.message || 'Could not start import');
       for (let i = 0; i < rows.length; i += BATCH) {
-        const { data, error: insErr } = await supabase
-          .from('parcels')
-          .insert(rows.slice(i, i + BATCH))
-          .select('id, parcel_number');
-        if (insErr) throw new Error(`Upload error at row ${i}: ${insErr.message}`);
-        for (const r of data ?? []) {
-          const pn = (r.parcel_number as string | null)?.trim();
-          if (pn && !newIdByParcelNumber.has(pn)) newIdByParcelNumber.set(pn, r.id as number);
-        }
-        setProgress(`Uploaded ${formatNum(Math.min(i + BATCH, rows.length))} / ${formatNum(rows.length)}…`);
+        const { error: uploadError } = await supabase.rpc('append_parcel_import', {
+          import_id: importId, chunk_offset: i, rows: rows.slice(i, i + BATCH) as unknown as Json,
+        });
+        if (uploadError) throw new Error(`Upload failed; existing territory is unchanged. ${uploadError.message}`);
+        setProgress(`Staged ${formatNum(Math.min(i + BATCH, rows.length))} / ${formatNum(rows.length)}…`);
       }
-
-      let carried = 0;
-      if (snapshot && (snapshot.states.size || snapshot.routeParcelNumbers.length)) {
-        setProgress('Reattaching statuses, notes, and routes…');
-        carried = await restorePipeline(snapshot, newIdByParcelNumber);
-      }
-
+      setProgress('Applying territory update…');
+      const { error: commitError } = await supabase.rpc('commit_parcel_import', { import_id: importId });
+      if (commitError) throw new Error(`Could not confirm import. Refresh to check before retrying. ${commitError.message}`);
       const detectedNote = await applyDetectedLocality(rows, fallbackState);
 
       setProgress('');
@@ -223,7 +174,7 @@ export default function ImportPage() {
       toast(
         [
           'Territory imported',
-          carried ? `${formatNum(carried)} statuses/notes carried over` : '',
+          hasExisting ? 'Matching parcels retain their pipeline history' : '',
           detectedNote,
         ]
           .filter(Boolean)
@@ -251,7 +202,8 @@ export default function ImportPage() {
     const kept: TablesInsert<'parcels'>[] = [];
     let seen = 0;
 
-    await new Promise<void>((resolve) => {
+    try {
+    await new Promise<void>((resolve, reject) => {
       Papa.parse<CsvRow>(file, {
         header: true,
         step: (res) => {
@@ -281,9 +233,16 @@ export default function ImportPage() {
             setProgress(`Scanned ${formatNum(seen)}, kept ${formatNum(kept.length)}…`);
         },
         complete: () => resolve(),
-        error: () => resolve(),
+        error: (error) => reject(error),
       });
     });
+
+    } catch (e) {
+      setError(`Could not read CSV: ${e instanceof Error ? e.message : String(e)}`);
+      setBusy(false);
+      setProgress('');
+      return;
+    }
 
     // Nothing is cleared until the new data has proven parseable.
     setBusy(false);
@@ -340,7 +299,7 @@ export default function ImportPage() {
         </>
       )}
 
-      {!file && (!hasExisting || isAdmin) && (
+      {!file && isAdmin && (
         <CountyPicker
           mode={isResidentialOrg ? 'residential' : 'commercial'}
           orgId={ws.orgId}
@@ -349,7 +308,7 @@ export default function ImportPage() {
         />
       )}
 
-      {!file && (!hasExisting || isAdmin) && (
+      {!file && isAdmin && (
         <p className="text-[12.5px] text-ink2 mb-2 mt-4">
           <b>Or upload a CSV.</b> Use this when your county isn&apos;t reachable above, or when you
           have a richer export (a prepared file with building sizes beats most public services).
@@ -357,7 +316,7 @@ export default function ImportPage() {
         </p>
       )}
 
-      {!file && (!hasExisting || isAdmin) && (
+      {!file && isAdmin && (
         <div
           className={`mt-3 border-2 border-dashed rounded-xl p-7 text-center text-ink2 cursor-pointer ${
             hot ? 'border-accent bg-accent-soft' : 'border-line2'

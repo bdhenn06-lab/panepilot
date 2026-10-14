@@ -1,9 +1,4 @@
-/**
- * Billing plans — Stripe integration is stubbed behind a feature flag so
- * launch doesn't block on it. When NEXT_PUBLIC_BILLING_ENABLED=true the
- * billing page shows checkout buttons; wiring them to Stripe Checkout is the
- * only remaining step (orgs already carry plan + stripe_customer_id columns).
- */
+/** Billing stays disabled for the free Whiteline preview. */
 export const BILLING_ENABLED = process.env.NEXT_PUBLIC_BILLING_ENABLED === 'true';
 
 export interface Plan {

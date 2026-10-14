@@ -153,14 +153,7 @@ export function ProspectDetail({ x }: { x: ScoredParcel }) {
           </>
         )}
         <p className="text-[11px] font-semibold text-ink3 mt-2.5 mb-1">TEAM NOTES</p>
-        <textarea
-          className="w-full min-h-[52px] border border-line2 rounded-md p-2 text-xs outline-none focus:border-accent"
-          placeholder="Gatekeeper name, best time to call…"
-          defaultValue={s.notes}
-          onBlur={(e) => {
-            if (e.target.value !== s.notes) ws.setState(x.id, { notes: e.target.value });
-          }}
-        />
+        <TeamNotes notes={s.notes} onSave={(notes, base) => ws.setState(x.id, { notes }, base)} />
       </div>
       <div>
         <p className="text-[11px] font-semibold text-ink3 mb-1.5">
@@ -320,6 +313,7 @@ export function ProspectDetail({ x }: { x: ScoredParcel }) {
                         setOutcomeLogged(true);
                         toast('Outcome logged');
                       })
+                      .catch((error) => toast(`Could not save outcome: ${String(error)}`))
                       .finally(() => setSavingOutcome(false));
                   }}
                 >
@@ -336,4 +330,23 @@ export function ProspectDetail({ x }: { x: ScoredParcel }) {
       </div>
     </div>
   );
+}
+
+function TeamNotes({ notes, onSave }: { notes: string; onSave: (notes: string, base: string) => Promise<boolean> }) {
+  const [draft, setDraft] = useState<{ text: string; base: string } | null>(null);
+  const [saving, setSaving] = useState(false);
+  return <textarea
+    aria-label="Team notes"
+    className="w-full min-h-[52px] border border-line2 rounded-md p-2 text-xs outline-none focus:border-accent"
+    placeholder="Gatekeeper name, best time to call…"
+    value={draft?.text ?? notes}
+    disabled={saving}
+    onChange={(e) => setDraft({ text: e.target.value, base: draft?.base ?? notes })}
+    onBlur={async () => {
+      if (!draft || draft.text === draft.base) { setDraft(null); return; }
+      setSaving(true);
+      try { if (await onSave(draft.text, draft.base)) setDraft(null); }
+      finally { setSaving(false); }
+    }}
+  />;
 }

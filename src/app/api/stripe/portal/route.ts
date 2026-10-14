@@ -10,7 +10,7 @@ export const runtime = 'nodejs';
  * update payment method, change plan, or cancel. Auth + admin required.
  */
 export async function POST(request: Request) {
-  if (!stripeConfigured()) {
+  if (process.env.NEXT_PUBLIC_BILLING_ENABLED !== 'true' || !stripeConfigured()) {
     return NextResponse.json({ error: 'Billing is not enabled yet.' }, { status: 503 });
   }
 

@@ -1,4 +1,5 @@
 import { NextResponse } from 'next/server';
+import { allowedCountyUrl } from '@/lib/counties/safe-url';
 import { createClient } from '@/lib/supabase/server';
 import { isCommercial, isResidential } from '@/lib/scoring';
 import { composeField, normalizeFeature, outFieldsFor } from '@/lib/counties/arcgis';
@@ -29,8 +30,10 @@ interface Body {
 }
 
 async function getJson(url: string, timeoutMs = 30_000): Promise<Record<string, unknown> | null> {
+  if (!allowedCountyUrl(url)) return null;
   try {
     const res = await fetch(url, {
+      redirect: 'error',
       headers: { Accept: 'application/json' },
       signal: AbortSignal.timeout(timeoutMs),
     });
@@ -56,6 +59,7 @@ export async function POST(request: Request) {
     return NextResponse.json({ error: 'Invalid request.' }, { status: 400 });
   }
   const { serviceUrl, fields } = body;
+  if (!allowedCountyUrl(serviceUrl)) return NextResponse.json({ error: 'Unsupported data host. Use CSV import.' }, { status: 400 });
   if (!serviceUrl || !fields?.address) {
     return NextResponse.json({ error: 'Service URL and address field required.' }, { status: 400 });
   }

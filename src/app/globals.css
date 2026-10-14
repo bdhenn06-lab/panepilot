@@ -25,8 +25,8 @@
   --color-warn-soft: #fbf0e0;
   --color-bad: #a8322a;
   --color-bad-soft: #fbeae8;
-  --font-sans: var(--font-plex-sans), ui-sans-serif, system-ui, sans-serif;
-  --font-mono: var(--font-plex-mono), ui-monospace, monospace;
+  --font-sans: "IBM Plex Sans", ui-sans-serif, system-ui, sans-serif;
+  --font-mono: "IBM Plex Mono", ui-monospace, monospace;
 }
 
 body {

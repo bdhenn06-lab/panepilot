@@ -1,4 +1,5 @@
 import { NextResponse } from 'next/server';
+import { allowedCountyUrl } from '@/lib/counties/safe-url';
 import { createClient } from '@/lib/supabase/server';
 import { buildQueryUrl, normalizeFeature, PAGE_SIZE, type ServiceMode } from '@/lib/counties/arcgis';
 import { findSource, searchSources } from '@/lib/counties/registry';
@@ -27,7 +28,9 @@ interface ArcGisFeature {
 }
 
 async function fetchArcGis(url: string): Promise<Record<string, unknown>> {
+  if (!allowedCountyUrl(url)) throw new Error('Unsupported data host. Use CSV import for this source.');
   const res = await fetch(url, {
+    redirect: 'error',
     headers: { Accept: 'application/json' },
     // County servers can be slow; fail rather than hang the function.
     signal: AbortSignal.timeout(45_000),

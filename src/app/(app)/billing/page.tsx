@@ -52,6 +52,14 @@ function BillingView() {
     }
   }
 
+  if (!BILLING_ENABLED) {
+    return <div className="max-w-xl">
+      <p className="text-base font-semibold mb-2">Free team preview</p>
+      <Callout tone="ok">No payment is required for this preview.</Callout>
+      <p className="text-[13px] text-ink2 mt-3">Try your territory, build a route, and track follow-ups with your team. Your feedback will help shape PanePilot.</p>
+    </div>;
+  }
+
   return (
     <div>
       <p className="text-base font-semibold mb-1">Plan &amp; billing</p>
